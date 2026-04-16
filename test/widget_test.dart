@@ -14,7 +14,7 @@ void main() {
   testWidgets('Renders tracker shell', (WidgetTester tester) async {
     // Build our app and trigger a frame.
     await tester.pumpWidget(const FakeStravaApp());
-    expect(find.text('Fake Strava Tracker'), findsOneWidget);
+    expect(find.text('Ready to Start'), findsOneWidget);
     expect(find.byType(FilledButton), findsOneWidget);
     expect(find.byType(OutlinedButton), findsOneWidget);
   });
