@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "442070306751",
+    "project_id": "fakestrava",
+    "storage_bucket": "fakestrava.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:442070306751:android:5def57823f132a0c071b0a",
+        "android_client_info": {
+          "package_name": "com.company.fakestrava"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDjDhXiQElkZgfBDEAY3RMeQAz95SkniXQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
