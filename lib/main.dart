@@ -1,7 +1,14 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_tts/flutter_tts.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
 import 'tracking/models/tracking_snapshot.dart';
@@ -23,6 +30,7 @@ class FakeStravaApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Fake Strava',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.orange),
         useMaterial3: true,
@@ -40,29 +48,51 @@ class TrackingHomePage extends StatefulWidget {
 }
 
 class _TrackingHomePageState extends State<TrackingHomePage> {
+  static const LatLng _defaultCenter = LatLng(3.1390, 101.6869);
   final TrackingBackgroundService _service = TrackingBackgroundService();
   final MapController _mapController = MapController();
-  static const LatLng _defaultCenter = LatLng(37.7749, -122.4194);
+  final FlutterTts _tts = FlutterTts();
+  final List<LatLng> _routePoints = <LatLng>[];
+  StreamSubscription<TrackingSnapshot>? _snapshotSubscription;
+  StreamSubscription<Position>? _foregroundPositionSubscription;
+  Timer? _voiceTimer;
+
   bool _isTracking = false;
+  bool _isAutoPaused = false;
   bool _isStarting = false;
   bool _isStopping = false;
+  bool _voicePaceEnabled = true;
+  bool _hasLiveLocationFix = false;
+  bool _hasCenteredOnLiveLocation = false;
+  bool _followUserLocation = true;
+  String? _locationStatus;
   double _distanceKm = 0;
+  double _elevationGainMeters = 0;
+  double _caloriesKcal = 0;
   int _points = 0;
   DateTime? _startedAt;
   String? _activeRouteSessionId;
+  FirebaseFirestore? _firestore;
   LatLng? _currentPosition;
   LatLng _mapCenter = _defaultCenter;
   double _mapZoom = 15.5;
-  final List<LatLng> _routePoints = <LatLng>[];
 
   @override
   void initState() {
     super.initState();
+    if (Firebase.apps.isNotEmpty) {
+      _firestore = FirebaseFirestore.instance;
+    }
     _hydrateState();
-    _service.updates.listen((TrackingSnapshot snapshot) {
+    _startForegroundPointerStream();
+    _setupVoicePace();
+    _snapshotSubscription = _service.updates.listen((
+      TrackingSnapshot snapshot,
+    ) {
       if (!mounted) {
         return;
       }
+      final wasTracking = _isTracking;
       setState(() {
         if (snapshot.sessionId != null &&
             snapshot.sessionId != _activeRouteSessionId &&
@@ -71,12 +101,70 @@ class _TrackingHomePageState extends State<TrackingHomePage> {
           _routePoints.clear();
         }
         _isTracking = snapshot.isTracking;
+        _isAutoPaused = snapshot.isAutoPaused;
         _distanceKm = snapshot.distanceMeters / 1000;
+        _elevationGainMeters = snapshot.elevationGainMeters;
+        _caloriesKcal = snapshot.caloriesKcal;
         _points = snapshot.points;
         _startedAt = snapshot.startedAt;
-        _capturePoint(snapshot);
+        if (snapshot.isTracking) {
+          _capturePoint(snapshot);
+        } else if (!_hasLiveLocationFix) {
+          _currentPosition = null;
+          _mapCenter = _defaultCenter;
+          _routePoints.clear();
+        }
       });
+      if (!wasTracking && _isTracking) {
+        _startVoiceAnnouncements();
+      } else if (wasTracking && !_isTracking) {
+        _stopVoiceAnnouncements();
+      }
     });
+  }
+
+  @override
+  void dispose() {
+    _snapshotSubscription?.cancel();
+    _foregroundPositionSubscription?.cancel();
+    _stopVoiceAnnouncements();
+    _tts.stop();
+    super.dispose();
+  }
+
+  Future<void> _setupVoicePace() async {
+    await _tts.setLanguage('en-US');
+    await _tts.setSpeechRate(0.42);
+  }
+
+  void _startVoiceAnnouncements() {
+    _voiceTimer?.cancel();
+    _voiceTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      _announcePace();
+    });
+  }
+
+  void _stopVoiceAnnouncements() {
+    _voiceTimer?.cancel();
+    _voiceTimer = null;
+  }
+
+  Future<void> _announcePace() async {
+    if (!_voicePaceEnabled ||
+        !_isTracking ||
+        _isAutoPaused ||
+        _distanceKm <= 0) {
+      return;
+    }
+    final pace = _paceMinPerKm();
+    if (pace <= 0) {
+      return;
+    }
+    final wholeMinutes = pace.floor();
+    final seconds = ((pace - wholeMinutes) * 60).round();
+    await _tts.speak(
+      'Current pace $wholeMinutes minutes ${seconds.clamp(0, 59)} seconds per kilometer',
+    );
   }
 
   Future<void> _hydrateState() async {
@@ -86,12 +174,24 @@ class _TrackingHomePageState extends State<TrackingHomePage> {
     }
     setState(() {
       _isTracking = snapshot.isTracking;
+      _isAutoPaused = snapshot.isAutoPaused;
       _distanceKm = snapshot.distanceMeters / 1000;
+      _elevationGainMeters = snapshot.elevationGainMeters;
+      _caloriesKcal = snapshot.caloriesKcal;
       _points = snapshot.points;
       _startedAt = snapshot.startedAt;
       _activeRouteSessionId = snapshot.sessionId;
-      _capturePoint(snapshot);
+      if (snapshot.isTracking) {
+        _capturePoint(snapshot);
+      } else {
+        _currentPosition = null;
+        _mapCenter = _defaultCenter;
+        _routePoints.clear();
+      }
     });
+    if (_isTracking) {
+      _startVoiceAnnouncements();
+    }
   }
 
   void _capturePoint(TrackingSnapshot snapshot) {
@@ -101,7 +201,9 @@ class _TrackingHomePageState extends State<TrackingHomePage> {
       return;
     }
     final point = LatLng(latitude, longitude);
-    _currentPosition = point;
+    if (!_hasLiveLocationFix) {
+      _currentPosition = point;
+    }
     if (_routePoints.length <= 1) {
       _mapCenter = point;
     }
@@ -112,9 +214,160 @@ class _TrackingHomePageState extends State<TrackingHomePage> {
     }
   }
 
+  Future<void> _startForegroundPointerStream() async {
+    if (kIsWeb) {
+      return;
+    }
+    if (!await Geolocator.isLocationServiceEnabled()) {
+      if (mounted) {
+        setState(() => _locationStatus = 'Turn on location services');
+      }
+      return;
+    }
+    var permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      if (mounted) {
+        setState(() => _locationStatus = 'Location permission required');
+      }
+      return;
+    }
+
+    await _foregroundPositionSubscription?.cancel();
+    try {
+      final initial = await Geolocator.getCurrentPosition(
+        locationSettings: _buildLocationSettings(),
+      );
+      _applyLivePosition(initial);
+    } catch (_) {
+      try {
+        final lastKnown = await Geolocator.getLastKnownPosition();
+        if (lastKnown != null) {
+          _applyLivePosition(lastKnown);
+        }
+      } catch (_) {}
+    }
+
+    _foregroundPositionSubscription =
+        Geolocator.getPositionStream(
+          locationSettings: _buildLocationSettings(),
+        ).listen(
+          (Position position) => _applyLivePosition(position),
+          onError: (_) {
+            if (mounted) {
+              setState(() => _locationStatus = 'Waiting for GPS signal...');
+            }
+          },
+        );
+  }
+
+  void _applyLivePosition(Position position) {
+    if (!mounted) {
+      return;
+    }
+    final point = LatLng(position.latitude, position.longitude);
+    final shouldCenterNow = !_hasCenteredOnLiveLocation;
+    setState(() {
+      _hasLiveLocationFix = true;
+      _currentPosition = point;
+      _locationStatus = position.isMocked
+          ? 'Mock location detected on device'
+          : null;
+      if (shouldCenterNow) {
+        _hasCenteredOnLiveLocation = true;
+        _mapCenter = point;
+      }
+    });
+    if (_followUserLocation || shouldCenterNow) {
+      _mapCenter = point;
+      _mapController.move(_mapCenter, _mapZoom);
+    }
+  }
+
+  LocationSettings _buildLocationSettings() {
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      return AndroidSettings(
+        accuracy: LocationAccuracy.bestForNavigation,
+        distanceFilter: 1,
+      );
+    }
+    return const LocationSettings(
+      accuracy: LocationAccuracy.bestForNavigation,
+      distanceFilter: 1,
+    );
+  }
+
+  Future<void> _openHistory() async {
+    final firestore = _firestore;
+    if (firestore == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Firebase is not ready yet.')),
+        );
+      }
+      return;
+    }
+    if (_isTracking) {
+      await _service.stopTracking();
+    }
+    if (!mounted) {
+      return;
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => WorkoutHistoryPage(
+          firestore: firestore,
+          onShareMessage: (message) {
+            if (!mounted) {
+              return;
+            }
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text(message)));
+          },
+        ),
+      ),
+    );
+  }
+
   void _zoomMap(double delta) {
     final nextZoom = (_mapZoom + delta).clamp(3.0, 18.0).toDouble();
     _mapController.move(_mapCenter, nextZoom);
+  }
+
+  void _recenterToUser() {
+    final point = _currentPosition;
+    if (point == null) {
+      return;
+    }
+    setState(() {
+      _followUserLocation = true;
+      _mapCenter = point;
+    });
+    _mapController.move(_mapCenter, _mapZoom);
+  }
+
+  double _paceMinPerKm() {
+    if (_startedAt == null || _distanceKm <= 0) {
+      return 0;
+    }
+    final elapsedMinutes =
+        DateTime.now().difference(_startedAt!).inSeconds / 60;
+    return elapsedMinutes / _distanceKm;
+  }
+
+  String _elapsedLabel() {
+    if (_startedAt == null) {
+      return '--:--:--';
+    }
+    final Duration elapsed = DateTime.now().difference(_startedAt!);
+    final int h = elapsed.inHours;
+    final int m = elapsed.inMinutes.remainder(60);
+    final int s = elapsed.inSeconds.remainder(60);
+    return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
   Widget _buildZoomButton({
@@ -135,26 +388,6 @@ class _TrackingHomePageState extends State<TrackingHomePage> {
         ),
       ),
     );
-  }
-
-  String _elapsedLabel() {
-    if (_startedAt == null) {
-      return '--:--:--';
-    }
-    final Duration elapsed = DateTime.now().difference(_startedAt!);
-    final int h = elapsed.inHours;
-    final int m = elapsed.inMinutes.remainder(60);
-    final int s = elapsed.inSeconds.remainder(60);
-    return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
-  }
-
-  double _paceMinPerKm() {
-    if (_startedAt == null || _distanceKm <= 0) {
-      return 0;
-    }
-    final elapsedMinutes =
-        DateTime.now().difference(_startedAt!).inSeconds / 60;
-    return elapsedMinutes / _distanceKm;
   }
 
   Widget _buildStatTile({
@@ -221,6 +454,9 @@ class _TrackingHomePageState extends State<TrackingHomePage> {
                   if (zoom != null) {
                     _mapZoom = zoom;
                   }
+                  if (hasGesture) {
+                    _followUserLocation = false;
+                  }
                 },
               ),
               children: [
@@ -263,29 +499,17 @@ class _TrackingHomePageState extends State<TrackingHomePage> {
               ],
             ),
           ),
-          Positioned.fill(
-            child: IgnorePointer(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.black.withValues(alpha: 0.22),
-                      Colors.transparent,
-                      Colors.black.withValues(alpha: 0.30),
-                    ],
-                    stops: const [0.0, 0.45, 1.0],
-                  ),
-                ),
-              ),
-            ),
-          ),
           Positioned(
             right: 14,
             top: 84,
             child: Column(
               children: [
+                _buildZoomButton(
+                  icon: Icons.my_location,
+                  onTap: _recenterToUser,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                const SizedBox(height: 8),
                 _buildZoomButton(
                   icon: Icons.add,
                   onTap: () => _zoomMap(1),
@@ -309,40 +533,63 @@ class _TrackingHomePageState extends State<TrackingHomePage> {
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
               child: Column(
                 children: [
-                  Align(
-                    alignment: Alignment.topLeft,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.92),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            _isTracking
-                                ? Icons.directions_run
-                                : Icons.pause_circle,
-                            size: 18,
-                            color: _isTracking
-                                ? Colors.green.shade700
-                                : Colors.black54,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            _isTracking ? 'Tracking Active' : 'Ready to Start',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              color: Colors.black87,
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.92),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _isTracking
+                                  ? Icons.directions_run
+                                  : Icons.pause_circle,
+                              size: 18,
+                              color: _isTracking
+                                  ? Colors.green.shade700
+                                  : Colors.black54,
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 6),
+                            Text(
+                              _isTracking
+                                  ? (_isAutoPaused
+                                        ? 'Auto-paused'
+                                        : 'Tracking Active')
+                                  : 'Ready to Start',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
+                      const Spacer(),
+                      IconButton.filledTonal(
+                        onPressed: _openHistory,
+                        icon: const Icon(Icons.history),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton.filledTonal(
+                        onPressed: () {
+                          setState(
+                            () => _voicePaceEnabled = !_voicePaceEnabled,
+                          );
+                        },
+                        icon: Icon(
+                          _voicePaceEnabled
+                              ? Icons.volume_up
+                              : Icons.volume_off,
+                        ),
+                      ),
+                    ],
                   ),
                   const Spacer(),
                   Container(
@@ -379,6 +626,28 @@ class _TrackingHomePageState extends State<TrackingHomePage> {
                           children: [
                             Expanded(
                               child: _buildStatTile(
+                                label: 'Calories',
+                                value:
+                                    '${_caloriesKcal.toStringAsFixed(0)} kcal',
+                                icon: Icons.local_fire_department,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _buildStatTile(
+                                label: 'Elevation',
+                                value:
+                                    '${_elevationGainMeters.toStringAsFixed(0)} m',
+                                icon: Icons.terrain,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildStatTile(
                                 label: 'Elapsed',
                                 value: _elapsedLabel(),
                                 icon: Icons.timer_outlined,
@@ -405,9 +674,13 @@ class _TrackingHomePageState extends State<TrackingHomePage> {
                                         final messenger = ScaffoldMessenger.of(
                                           context,
                                         );
-                                        setState(() => _isStarting = true);
+                                        setState(() {
+                                          _isStarting = true;
+                                          _followUserLocation = true;
+                                        });
                                         try {
                                           await _service.startTracking();
+                                          await _startForegroundPointerStream();
                                         } catch (error) {
                                           messenger.showSnackBar(
                                             SnackBar(
@@ -476,6 +749,15 @@ class _TrackingHomePageState extends State<TrackingHomePage> {
                               color: Colors.black54,
                             ),
                           ),
+                        ] else if (_locationStatus != null) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            _locationStatus!,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.black54,
+                            ),
+                          ),
                         ],
                       ],
                     ),
@@ -485,6 +767,130 @@ class _TrackingHomePageState extends State<TrackingHomePage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class WorkoutHistoryPage extends StatelessWidget {
+  const WorkoutHistoryPage({
+    super.key,
+    required this.firestore,
+    required this.onShareMessage,
+  });
+
+  final FirebaseFirestore firestore;
+  final ValueChanged<String> onShareMessage;
+
+  Future<void> _exportSessionGpx(String sessionId) async {
+    final pointSnapshots = await firestore
+        .collection('tracking_sessions')
+        .doc(sessionId)
+        .collection('points')
+        .orderBy('timestamp')
+        .get();
+    if (pointSnapshots.docs.isEmpty) {
+      onShareMessage('No points found for this workout.');
+      return;
+    }
+    final buffer = StringBuffer()
+      ..writeln('<?xml version="1.0" encoding="UTF-8"?>')
+      ..writeln('<gpx version="1.1" creator="Fake Strava">')
+      ..writeln('  <trk>')
+      ..writeln('    <name>Fake Strava Workout</name>')
+      ..writeln('    <trkseg>');
+    for (final doc in pointSnapshots.docs) {
+      final data = doc.data();
+      final lat = (data['latitude'] as num?)?.toDouble();
+      final lon = (data['longitude'] as num?)?.toDouble();
+      final time = data['timestamp'] as String?;
+      if (lat == null || lon == null) {
+        continue;
+      }
+      buffer.writeln('      <trkpt lat="$lat" lon="$lon">');
+      if (time != null) {
+        buffer.writeln('        <time>$time</time>');
+      }
+      buffer.writeln('      </trkpt>');
+    }
+    buffer
+      ..writeln('    </trkseg>')
+      ..writeln('  </trk>')
+      ..writeln('</gpx>');
+
+    final bytes = Uint8List.fromList(utf8.encode(buffer.toString()));
+    await Clipboard.setData(ClipboardData(text: utf8.decode(bytes)));
+    onShareMessage('GPX copied to clipboard. Paste it into a .gpx file.');
+  }
+
+  String _formatDuration(DateTime? startedAt, DateTime? endedAt) {
+    if (startedAt == null || endedAt == null) {
+      return '--:--:--';
+    }
+    final elapsed = endedAt.difference(startedAt);
+    final h = elapsed.inHours;
+    final m = elapsed.inMinutes.remainder(60);
+    final s = elapsed.inSeconds.remainder(60);
+    return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Workout History')),
+      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: firestore
+            .collection('tracking_sessions')
+            .orderBy('startedAt', descending: true)
+            .limit(50)
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final sessions = snapshot.data!.docs;
+          if (sessions.isEmpty) {
+            return const Center(child: Text('No workouts yet.'));
+          }
+          return ListView.separated(
+            itemCount: sessions.length,
+            separatorBuilder: (_, index) => const Divider(height: 1),
+            itemBuilder: (context, index) {
+              final data = sessions[index].data();
+              final sessionId = sessions[index].id;
+              final startedAt = DateTime.tryParse(
+                data['startedAt'] as String? ?? '',
+              );
+              final endedAt = DateTime.tryParse(
+                data['endedAt'] as String? ?? '',
+              );
+              final distanceMeters =
+                  (data['distanceMeters'] as num?)?.toDouble() ?? 0;
+              final calories = (data['caloriesKcal'] as num?)?.toDouble() ?? 0;
+              final elevation =
+                  (data['elevationGainMeters'] as num?)?.toDouble() ?? 0;
+              final distanceKm = distanceMeters / 1000;
+              final durationSeconds = (startedAt != null && endedAt != null)
+                  ? endedAt.difference(startedAt).inSeconds
+                  : 0;
+              final pace = durationSeconds > 0 && distanceKm > 0
+                  ? (durationSeconds / 60) / distanceKm
+                  : 0.0;
+              return ListTile(
+                title: Text(
+                  '${distanceKm.toStringAsFixed(2)} km • ${pace > 0 ? '${pace.toStringAsFixed(2)} min/km' : '-- min/km'}',
+                ),
+                subtitle: Text(
+                  '${_formatDuration(startedAt, endedAt)} • ${calories.toStringAsFixed(0)} kcal • +${elevation.toStringAsFixed(0)} m',
+                ),
+                trailing: IconButton(
+                  icon: const Icon(Icons.file_download_outlined),
+                  onPressed: () => _exportSessionGpx(sessionId),
+                ),
+              );
+            },
+          );
+        },
       ),
     );
   }

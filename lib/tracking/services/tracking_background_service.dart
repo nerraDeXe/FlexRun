@@ -13,10 +13,13 @@ import 'distance_calculator.dart';
 import 'tracking_repository.dart';
 
 const String _kDistanceMeters = 'distanceMeters';
+const String _kElevationGainMeters = 'elevationGainMeters';
+const String _kCaloriesKcal = 'caloriesKcal';
 const String _kPoints = 'points';
 const String _kSessionId = 'sessionId';
 const String _kStartedAtIso = 'startedAtIso';
 const String _kIsTracking = 'isTracking';
+const String _kIsAutoPaused = 'isAutoPaused';
 const String _kLatitude = 'latitude';
 const String _kLongitude = 'longitude';
 const String _kUpdateEvent = 'tracking_update';
@@ -24,6 +27,10 @@ const String _kStartEvent = 'start_tracking';
 const String _kStopEvent = 'stop_tracking';
 const double _kMaxHorizontalAccuracyMeters = 25;
 const double _kMinMovementMeters = 3;
+const double _kCaloriesPerKm = 62;
+const Duration _kAutoPauseDelay = Duration(seconds: 20);
+const double _kAutoPauseSpeedThresholdMps = 0.8;
+const double _kAutoResumeSpeedThresholdMps = 1.2;
 const Uuid _kUuid = Uuid();
 
 class TrackingBackgroundService {
@@ -62,7 +69,11 @@ class TrackingBackgroundService {
     _service.on(_kUpdateEvent).listen((payload) {
       final snapshot = TrackingSnapshot(
         isTracking: payload?[_kIsTracking] == true,
+        isAutoPaused: payload?[_kIsAutoPaused] == true,
         distanceMeters: (payload?[_kDistanceMeters] as num?)?.toDouble() ?? 0,
+        elevationGainMeters:
+            (payload?[_kElevationGainMeters] as num?)?.toDouble() ?? 0,
+        caloriesKcal: (payload?[_kCaloriesKcal] as num?)?.toDouble() ?? 0,
         points: (payload?[_kPoints] as num?)?.toInt() ?? 0,
         sessionId: payload?[_kSessionId] as String?,
         startedAt: _parseIso(payload?[_kStartedAtIso] as String?),
@@ -90,7 +101,10 @@ class TrackingBackgroundService {
     final prefs = await SharedPreferences.getInstance();
     return TrackingSnapshot(
       isTracking: prefs.getBool(_kIsTracking) ?? false,
+      isAutoPaused: prefs.getBool(_kIsAutoPaused) ?? false,
       distanceMeters: prefs.getDouble(_kDistanceMeters) ?? 0,
+      elevationGainMeters: prefs.getDouble(_kElevationGainMeters) ?? 0,
+      caloriesKcal: prefs.getDouble(_kCaloriesKcal) ?? 0,
       points: prefs.getInt(_kPoints) ?? 0,
       sessionId: prefs.getString(_kSessionId),
       startedAt: _parseIso(prefs.getString(_kStartedAtIso)),
@@ -149,15 +163,22 @@ Future<void> _onServiceStart(ServiceInstance service) async {
   StreamSubscription<Position>? positionSubscription;
   TrackingPoint? lastPoint;
   var distanceMeters = prefs.getDouble(_kDistanceMeters) ?? 0.0;
+  var elevationGainMeters = prefs.getDouble(_kElevationGainMeters) ?? 0.0;
+  var caloriesKcal = prefs.getDouble(_kCaloriesKcal) ?? 0.0;
   var points = prefs.getInt(_kPoints) ?? 0;
   var sessionId = prefs.getString(_kSessionId);
   var startedAt = DateTime.tryParse(prefs.getString(_kStartedAtIso) ?? '');
   var isTracking = prefs.getBool(_kIsTracking) ?? false;
+  var isAutoPaused = prefs.getBool(_kIsAutoPaused) ?? false;
+  DateTime? stationarySince;
 
   Future<void> broadcastSnapshot() async {
     final payload = <String, dynamic>{
       _kIsTracking: isTracking,
+      _kIsAutoPaused: isAutoPaused,
       _kDistanceMeters: distanceMeters,
+      _kElevationGainMeters: elevationGainMeters,
+      _kCaloriesKcal: caloriesKcal,
       _kPoints: points,
       _kSessionId: sessionId,
       _kStartedAtIso: startedAt?.toIso8601String(),
@@ -166,7 +187,10 @@ Future<void> _onServiceStart(ServiceInstance service) async {
     };
     service.invoke(_kUpdateEvent, payload);
     await prefs.setBool(_kIsTracking, isTracking);
+    await prefs.setBool(_kIsAutoPaused, isAutoPaused);
     await prefs.setDouble(_kDistanceMeters, distanceMeters);
+    await prefs.setDouble(_kElevationGainMeters, elevationGainMeters);
+    await prefs.setDouble(_kCaloriesKcal, caloriesKcal);
     await prefs.setInt(_kPoints, points);
     if (sessionId != null) {
       await prefs.setString(_kSessionId, sessionId!);
@@ -194,9 +218,13 @@ Future<void> _onServiceStart(ServiceInstance service) async {
     sessionId = _kUuid.v4();
     startedAt = DateTime.now().toUtc();
     distanceMeters = 0;
+    elevationGainMeters = 0;
+    caloriesKcal = 0;
     points = 0;
     lastPoint = null;
     isTracking = true;
+    isAutoPaused = false;
+    stationarySince = null;
 
     await repository.createSession(
       sessionId: sessionId!,
@@ -223,17 +251,55 @@ Future<void> _onServiceStart(ServiceInstance service) async {
             longitude: position.longitude,
             accuracyMeters: position.accuracy,
             timestamp: position.timestamp.toUtc(),
+            speedMps: position.speed >= 0 ? position.speed : null,
+            altitudeMeters: position.altitude,
           );
 
+          final previousAutoPaused = isAutoPaused;
+          final nowUtc = DateTime.now().toUtc();
+          var segmentMeters = 0.0;
           if (lastPoint != null) {
-            final segmentMeters = DistanceCalculator.haversineMeters(
+            segmentMeters = DistanceCalculator.haversineMeters(
               lastPoint!,
               point,
             );
+            final speed = position.speed >= 0 ? position.speed : 0.0;
+            final hasMeaningfulMovement =
+                speed >= _kAutoResumeSpeedThresholdMps ||
+                segmentMeters >= _kMinMovementMeters;
+
+            if (hasMeaningfulMovement) {
+              stationarySince = null;
+              isAutoPaused = false;
+            } else {
+              stationarySince ??= nowUtc;
+              final stationaryFor = nowUtc.difference(stationarySince!);
+              if (stationaryFor >= _kAutoPauseDelay &&
+                  speed <= _kAutoPauseSpeedThresholdMps) {
+                isAutoPaused = true;
+              }
+            }
+
+            final previousAltitude = lastPoint!.altitudeMeters;
+            final currentAltitude = point.altitudeMeters;
+            if (previousAltitude != null && currentAltitude != null) {
+              final climb = currentAltitude - previousAltitude;
+              if (climb > 0.5) {
+                elevationGainMeters += climb;
+              }
+            }
+
             if (segmentMeters < _kMinMovementMeters) {
+              if (previousAutoPaused != isAutoPaused) {
+                await broadcastSnapshot();
+              }
               return;
             }
-            distanceMeters += segmentMeters;
+
+            if (!isAutoPaused) {
+              distanceMeters += segmentMeters;
+              caloriesKcal = (distanceMeters / 1000) * _kCaloriesPerKm;
+            }
           }
 
           lastPoint = point;
@@ -243,6 +309,9 @@ Future<void> _onServiceStart(ServiceInstance service) async {
             sessionId: sessionId!,
             point: point,
             totalDistanceMeters: distanceMeters,
+            elevationGainMeters: elevationGainMeters,
+            caloriesKcal: caloriesKcal,
+            isAutoPaused: isAutoPaused,
             points: points,
           );
           await broadcastSnapshot();
@@ -270,6 +339,8 @@ Future<void> _onServiceStart(ServiceInstance service) async {
         sessionId: sessionId!,
         endedAt: DateTime.now().toUtc(),
         distanceMeters: distanceMeters,
+        elevationGainMeters: elevationGainMeters,
+        caloriesKcal: caloriesKcal,
         points: points,
       );
     }
@@ -277,6 +348,8 @@ Future<void> _onServiceStart(ServiceInstance service) async {
     sessionId = null;
     startedAt = null;
     lastPoint = null;
+    isAutoPaused = false;
+    stationarySince = null;
     await broadcastSnapshot();
   }
 

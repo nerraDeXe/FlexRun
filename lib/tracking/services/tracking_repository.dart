@@ -17,6 +17,9 @@ class TrackingRepository {
       'updatedAt': FieldValue.serverTimestamp(),
       'status': 'active',
       'distanceMeters': 0,
+      'elevationGainMeters': 0,
+      'caloriesKcal': 0,
+      'isAutoPaused': false,
       'points': 0,
     });
   }
@@ -25,6 +28,9 @@ class TrackingRepository {
     required String sessionId,
     required TrackingPoint point,
     required double totalDistanceMeters,
+    required double elevationGainMeters,
+    required double caloriesKcal,
+    required bool isAutoPaused,
     required int points,
   }) async {
     final sessionRef = _firestore
@@ -36,6 +42,9 @@ class TrackingRepository {
       transaction.update(sessionRef, {
         'updatedAt': FieldValue.serverTimestamp(),
         'distanceMeters': totalDistanceMeters,
+        'elevationGainMeters': elevationGainMeters,
+        'caloriesKcal': caloriesKcal,
+        'isAutoPaused': isAutoPaused,
         'points': points,
       });
     });
@@ -45,6 +54,8 @@ class TrackingRepository {
     required String sessionId,
     required DateTime endedAt,
     required double distanceMeters,
+    required double elevationGainMeters,
+    required double caloriesKcal,
     required int points,
   }) async {
     await _firestore.collection('tracking_sessions').doc(sessionId).update({
@@ -52,6 +63,9 @@ class TrackingRepository {
       'endedAt': endedAt.toIso8601String(),
       'updatedAt': FieldValue.serverTimestamp(),
       'distanceMeters': distanceMeters,
+      'elevationGainMeters': elevationGainMeters,
+      'caloriesKcal': caloriesKcal,
+      'isAutoPaused': false,
       'points': points,
     });
   }

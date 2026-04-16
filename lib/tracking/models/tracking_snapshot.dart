@@ -1,7 +1,10 @@
 class TrackingSnapshot {
   const TrackingSnapshot({
     required this.isTracking,
+    required this.isAutoPaused,
     required this.distanceMeters,
+    required this.elevationGainMeters,
+    required this.caloriesKcal,
     required this.points,
     required this.sessionId,
     required this.startedAt,
@@ -10,7 +13,10 @@ class TrackingSnapshot {
   });
 
   final bool isTracking;
+  final bool isAutoPaused;
   final double distanceMeters;
+  final double elevationGainMeters;
+  final double caloriesKcal;
   final int points;
   final String? sessionId;
   final DateTime? startedAt;
