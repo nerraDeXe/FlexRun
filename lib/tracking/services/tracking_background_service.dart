@@ -17,6 +17,8 @@ const String _kPoints = 'points';
 const String _kSessionId = 'sessionId';
 const String _kStartedAtIso = 'startedAtIso';
 const String _kIsTracking = 'isTracking';
+const String _kLatitude = 'latitude';
+const String _kLongitude = 'longitude';
 const String _kUpdateEvent = 'tracking_update';
 const String _kStartEvent = 'start_tracking';
 const String _kStopEvent = 'stop_tracking';
@@ -64,6 +66,8 @@ class TrackingBackgroundService {
         points: (payload?[_kPoints] as num?)?.toInt() ?? 0,
         sessionId: payload?[_kSessionId] as String?,
         startedAt: _parseIso(payload?[_kStartedAtIso] as String?),
+        latitude: (payload?[_kLatitude] as num?)?.toDouble(),
+        longitude: (payload?[_kLongitude] as num?)?.toDouble(),
       );
       _updatesController.add(snapshot);
     });
@@ -90,6 +94,8 @@ class TrackingBackgroundService {
       points: prefs.getInt(_kPoints) ?? 0,
       sessionId: prefs.getString(_kSessionId),
       startedAt: _parseIso(prefs.getString(_kStartedAtIso)),
+      latitude: prefs.getDouble(_kLatitude),
+      longitude: prefs.getDouble(_kLongitude),
     );
   }
 
@@ -155,6 +161,8 @@ Future<void> _onServiceStart(ServiceInstance service) async {
       _kPoints: points,
       _kSessionId: sessionId,
       _kStartedAtIso: startedAt?.toIso8601String(),
+      _kLatitude: lastPoint?.latitude,
+      _kLongitude: lastPoint?.longitude,
     };
     service.invoke(_kUpdateEvent, payload);
     await prefs.setBool(_kIsTracking, isTracking);
@@ -169,6 +177,13 @@ Future<void> _onServiceStart(ServiceInstance service) async {
       await prefs.setString(_kStartedAtIso, startedAt!.toIso8601String());
     } else {
       await prefs.remove(_kStartedAtIso);
+    }
+    if (lastPoint != null) {
+      await prefs.setDouble(_kLatitude, lastPoint!.latitude);
+      await prefs.setDouble(_kLongitude, lastPoint!.longitude);
+    } else {
+      await prefs.remove(_kLatitude);
+      await prefs.remove(_kLongitude);
     }
   }
 

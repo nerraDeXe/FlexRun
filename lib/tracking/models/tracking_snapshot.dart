@@ -5,6 +5,8 @@ class TrackingSnapshot {
     required this.points,
     required this.sessionId,
     required this.startedAt,
+    required this.latitude,
+    required this.longitude,
   });
 
   final bool isTracking;
@@ -12,4 +14,6 @@ class TrackingSnapshot {
   final int points;
   final String? sessionId;
   final DateTime? startedAt;
+  final double? latitude;
+  final double? longitude;
 }

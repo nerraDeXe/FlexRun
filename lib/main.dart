@@ -1,6 +1,8 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 
 import 'tracking/models/tracking_snapshot.dart';
 import 'tracking/services/tracking_background_service.dart';
@@ -39,6 +41,7 @@ class TrackingHomePage extends StatefulWidget {
 
 class _TrackingHomePageState extends State<TrackingHomePage> {
   final TrackingBackgroundService _service = TrackingBackgroundService();
+  static const LatLng _defaultCenter = LatLng(37.7749, -122.4194);
   bool _isTracking = false;
   bool _isStarting = false;
   bool _isStopping = false;
@@ -46,6 +49,9 @@ class _TrackingHomePageState extends State<TrackingHomePage> {
   int _points = 0;
   DateTime? _startedAt;
   String? _sessionId;
+  String? _activeRouteSessionId;
+  LatLng? _currentPosition;
+  final List<LatLng> _routePoints = <LatLng>[];
 
   @override
   void initState() {
@@ -56,11 +62,18 @@ class _TrackingHomePageState extends State<TrackingHomePage> {
         return;
       }
       setState(() {
+        if (snapshot.sessionId != null &&
+            snapshot.sessionId != _activeRouteSessionId &&
+            snapshot.isTracking) {
+          _activeRouteSessionId = snapshot.sessionId;
+          _routePoints.clear();
+        }
         _isTracking = snapshot.isTracking;
         _distanceKm = snapshot.distanceMeters / 1000;
         _points = snapshot.points;
         _startedAt = snapshot.startedAt;
         _sessionId = snapshot.sessionId;
+        _capturePoint(snapshot);
       });
     });
   }
@@ -76,7 +89,24 @@ class _TrackingHomePageState extends State<TrackingHomePage> {
       _points = snapshot.points;
       _startedAt = snapshot.startedAt;
       _sessionId = snapshot.sessionId;
+      _activeRouteSessionId = snapshot.sessionId;
+      _capturePoint(snapshot);
     });
+  }
+
+  void _capturePoint(TrackingSnapshot snapshot) {
+    final latitude = snapshot.latitude;
+    final longitude = snapshot.longitude;
+    if (latitude == null || longitude == null) {
+      return;
+    }
+    final point = LatLng(latitude, longitude);
+    _currentPosition = point;
+    if (_routePoints.isEmpty ||
+        _routePoints.last.latitude != point.latitude ||
+        _routePoints.last.longitude != point.longitude) {
+      _routePoints.add(point);
+    }
   }
 
   String _elapsedLabel() {
@@ -109,6 +139,58 @@ class _TrackingHomePageState extends State<TrackingHomePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            SizedBox(
+              height: 240,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: FlutterMap(
+                  key: ValueKey(
+                    '${_currentPosition?.latitude}_${_currentPosition?.longitude}_${_routePoints.length}',
+                  ),
+                  options: MapOptions(
+                    initialCenter:
+                        _currentPosition ??
+                        (_routePoints.isNotEmpty
+                            ? _routePoints.last
+                            : _defaultCenter),
+                    initialZoom: 15,
+                  ),
+                  children: [
+                    TileLayer(
+                      urlTemplate:
+                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      userAgentPackageName: 'com.company.fakestrava',
+                    ),
+                    if (_routePoints.length >= 2)
+                      PolylineLayer(
+                        polylines: [
+                          Polyline(
+                            points: _routePoints,
+                            strokeWidth: 5,
+                            color: Colors.orange,
+                          ),
+                        ],
+                      ),
+                    if (_currentPosition != null)
+                      MarkerLayer(
+                        markers: [
+                          Marker(
+                            point: _currentPosition!,
+                            width: 26,
+                            height: 26,
+                            child: const Icon(
+                              Icons.my_location,
+                              color: Colors.blue,
+                              size: 22,
+                            ),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
             Text(
               _isTracking ? 'Tracking Active' : 'Tracking Stopped',
               style: Theme.of(context).textTheme.headlineSmall,
