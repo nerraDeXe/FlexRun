@@ -71,9 +71,9 @@ class TrackingBackgroundService {
 
   Future<void> startTracking() async {
     await _ensureLocationPermission();
-    final isRunning = await _service.isRunning();
-    if (!isRunning) {
+    if (!await _service.isRunning()) {
       await _service.startService();
+      await _waitForServiceToRun();
     }
     _service.invoke(_kStartEvent);
   }
@@ -106,6 +106,17 @@ class TrackingBackgroundService {
         permission == LocationPermission.deniedForever) {
       throw StateError('Location permission is required for tracking.');
     }
+  }
+
+  Future<void> _waitForServiceToRun() async {
+    const maxAttempts = 20;
+    for (var i = 0; i < maxAttempts; i++) {
+      if (await _service.isRunning()) {
+        return;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+    }
+    throw StateError('Background service failed to start.');
   }
 
   static DateTime? _parseIso(String? value) {

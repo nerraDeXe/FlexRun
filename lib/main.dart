@@ -40,6 +40,8 @@ class TrackingHomePage extends StatefulWidget {
 class _TrackingHomePageState extends State<TrackingHomePage> {
   final TrackingBackgroundService _service = TrackingBackgroundService();
   bool _isTracking = false;
+  bool _isStarting = false;
+  bool _isStopping = false;
   double _distanceKm = 0;
   int _points = 0;
   DateTime? _startedAt;
@@ -122,23 +124,47 @@ class _TrackingHomePageState extends State<TrackingHomePage> {
               children: [
                 Expanded(
                   child: FilledButton(
-                    onPressed: kIsWeb || _isTracking
+                    onPressed: kIsWeb || _isTracking || _isStarting
                         ? null
                         : () async {
-                            await _service.startTracking();
+                            final messenger = ScaffoldMessenger.of(context);
+                            setState(() => _isStarting = true);
+                            try {
+                              await _service.startTracking();
+                            } catch (error) {
+                              messenger.showSnackBar(
+                                SnackBar(content: Text(error.toString())),
+                              );
+                            } finally {
+                              if (mounted) {
+                                setState(() => _isStarting = false);
+                              }
+                            }
                           },
-                    child: const Text('Start'),
+                    child: Text(_isStarting ? 'Starting...' : 'Start'),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: !kIsWeb && _isTracking
+                    onPressed: !kIsWeb && _isTracking && !_isStopping
                         ? () async {
-                            await _service.stopTracking();
+                            final messenger = ScaffoldMessenger.of(context);
+                            setState(() => _isStopping = true);
+                            try {
+                              await _service.stopTracking();
+                            } catch (error) {
+                              messenger.showSnackBar(
+                                SnackBar(content: Text(error.toString())),
+                              );
+                            } finally {
+                              if (mounted) {
+                                setState(() => _isStopping = false);
+                              }
+                            }
                           }
                         : null,
-                    child: const Text('Stop'),
+                    child: Text(_isStopping ? 'Stopping...' : 'Stop'),
                   ),
                 ),
               ],
