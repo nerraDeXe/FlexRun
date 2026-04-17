@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:ui';
-
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
@@ -164,6 +164,7 @@ class TrackingBackgroundService {
     late final StreamSubscription<TrackingSnapshot> updatesSubscription;
     late final StreamSubscription<String> errorsSubscription;
     Timer? timeout;
+    Timer? retryTimer;
 
     void completeError(Object error) {
       if (!completer.isCompleted) {
@@ -189,11 +190,18 @@ class TrackingBackgroundService {
       );
     });
 
+    retryTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
+      if (!completer.isCompleted) {
+        _service.invoke(_kStartEvent);
+      }
+    });
+
     try {
       _service.invoke(_kStartEvent);
       await completer.future;
     } finally {
       timeout.cancel();
+      retryTimer.cancel();
       await updatesSubscription.cancel();
       await errorsSubscription.cancel();
     }
@@ -295,9 +303,12 @@ Future<void> _onServiceStart(ServiceInstance service) async {
     isAutoPaused = false;
     stationarySince = null;
 
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+
     await repository.createSession(
       sessionId: sessionId!,
       startedAt: startedAt!,
+      userId: userId,
     );
     await broadcastSnapshot();
 

@@ -267,9 +267,11 @@ class ProgressPage extends StatelessWidget {
       return const Center(child: Text('Firebase is not ready yet.'));
     }
 
+    final userId = FirebaseAuth.instance.currentUser?.uid;
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
+      stream: FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'fakestrava')
           .collection('tracking_sessions')
+          .where('userId', isEqualTo: userId)
           .orderBy('startedAt', descending: true)
           .limit(50)
           .snapshots(),
@@ -434,7 +436,7 @@ class ProfilePage extends StatelessWidget {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => WorkoutHistoryPage(
-          firestore: FirebaseFirestore.instance,
+          firestore: FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'fakestrava'),
           onShareMessage: (message) {
             ScaffoldMessenger.of(
               context,

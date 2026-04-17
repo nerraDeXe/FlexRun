@@ -3,9 +3,11 @@ import 'package:flutter/foundation.dart';
 
 import '../models/tracking_point.dart';
 
+import 'package:firebase_core/firebase_core.dart';
+
 class TrackingRepository {
   TrackingRepository({FirebaseFirestore? firestore})
-    : _firestore = firestore ?? FirebaseFirestore.instance;
+    : _firestore = firestore ?? FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'fakestrava');
 
   final FirebaseFirestore _firestore;
   bool _cloudSyncEnabled = true;
@@ -16,7 +18,7 @@ class TrackingRepository {
     }
     final message = error.message?.toLowerCase() ?? '';
     return error.code == 'not-found' &&
-        message.contains('database (default) does not exist');
+        (message.contains('database (default) does not exist') || message.contains('database fakestrava does not exist'));
   }
 
   void _disableCloudSync(Object error) {
@@ -29,28 +31,30 @@ class TrackingRepository {
   Future<void> createSession({
     required String sessionId,
     required DateTime startedAt,
+    required String? userId,
   }) async {
     if (!_cloudSyncEnabled) {
       return;
     }
-    try {
-      await _firestore.collection('tracking_sessions').doc(sessionId).set({
-        'startedAt': startedAt.toIso8601String(),
-        'updatedAt': FieldValue.serverTimestamp(),
-        'status': 'active',
-        'distanceMeters': 0,
-        'elevationGainMeters': 0,
-        'caloriesKcal': 0,
-        'isAutoPaused': false,
-        'points': 0,
-      });
-    } catch (error) {
-      if (_isMissingDatabaseError(error)) {
-        _disableCloudSync(error);
-        return;
-      }
-      rethrow;
-    }
+    _firestore
+        .collection('tracking_sessions')
+        .doc(sessionId)
+        .set({
+          'userId': userId,
+          'startedAt': startedAt.toIso8601String(),
+          'updatedAt': FieldValue.serverTimestamp(),
+          'status': 'active',
+          'distanceMeters': 0,
+          'elevationGainMeters': 0,
+          'caloriesKcal': 0,
+          'isAutoPaused': false,
+          'points': 0,
+        })
+        .catchError((Object error) {
+          if (_isMissingDatabaseError(error)) {
+            _disableCloudSync(error);
+          }
+        });
   }
 
   Future<void> appendPoint({
@@ -69,25 +73,23 @@ class TrackingRepository {
         .collection('tracking_sessions')
         .doc(sessionId);
     final pointRef = sessionRef.collection('points').doc();
-    try {
-      await _firestore.runTransaction((transaction) async {
-        transaction.set(pointRef, point.toMap());
-        transaction.update(sessionRef, {
-          'updatedAt': FieldValue.serverTimestamp(),
-          'distanceMeters': totalDistanceMeters,
-          'elevationGainMeters': elevationGainMeters,
-          'caloriesKcal': caloriesKcal,
-          'isAutoPaused': isAutoPaused,
-          'points': points,
-        });
-      });
-    } catch (error) {
+
+    final batch = _firestore.batch();
+    batch.set(pointRef, point.toMap());
+    batch.update(sessionRef, {
+      'updatedAt': FieldValue.serverTimestamp(),
+      'distanceMeters': totalDistanceMeters,
+      'elevationGainMeters': elevationGainMeters,
+      'caloriesKcal': caloriesKcal,
+      'isAutoPaused': isAutoPaused,
+      'points': points,
+    });
+
+    batch.commit().catchError((Object error) {
       if (_isMissingDatabaseError(error)) {
         _disableCloudSync(error);
-        return;
       }
-      rethrow;
-    }
+    });
   }
 
   Future<void> closeSession({
@@ -101,23 +103,23 @@ class TrackingRepository {
     if (!_cloudSyncEnabled) {
       return;
     }
-    try {
-      await _firestore.collection('tracking_sessions').doc(sessionId).update({
-        'status': 'stopped',
-        'endedAt': endedAt.toIso8601String(),
-        'updatedAt': FieldValue.serverTimestamp(),
-        'distanceMeters': distanceMeters,
-        'elevationGainMeters': elevationGainMeters,
-        'caloriesKcal': caloriesKcal,
-        'isAutoPaused': false,
-        'points': points,
-      });
-    } catch (error) {
-      if (_isMissingDatabaseError(error)) {
-        _disableCloudSync(error);
-        return;
-      }
-      rethrow;
-    }
+    _firestore
+        .collection('tracking_sessions')
+        .doc(sessionId)
+        .update({
+          'status': 'stopped',
+          'endedAt': endedAt.toIso8601String(),
+          'updatedAt': FieldValue.serverTimestamp(),
+          'distanceMeters': distanceMeters,
+          'elevationGainMeters': elevationGainMeters,
+          'caloriesKcal': caloriesKcal,
+          'isAutoPaused': false,
+          'points': points,
+        })
+        .catchError((Object error) {
+          if (_isMissingDatabaseError(error)) {
+            _disableCloudSync(error);
+          }
+        });
   }
 }
