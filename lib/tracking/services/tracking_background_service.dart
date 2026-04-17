@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -25,6 +26,7 @@ const String _kLongitude = 'longitude';
 const String _kUpdateEvent = 'tracking_update';
 const String _kStartEvent = 'start_tracking';
 const String _kStopEvent = 'stop_tracking';
+const String _kErrorEvent = 'tracking_error';
 const double _kMaxHorizontalAccuracyMeters = 25;
 const double _kMinMovementMeters = 3;
 const double _kCaloriesPerKm = 62;
@@ -44,8 +46,11 @@ class TrackingBackgroundService {
   final FlutterBackgroundService _service = FlutterBackgroundService();
   final StreamController<TrackingSnapshot> _updatesController =
       StreamController<TrackingSnapshot>.broadcast();
+  final StreamController<String> _errorsController =
+      StreamController<String>.broadcast();
 
   Stream<TrackingSnapshot> get updates => _updatesController.stream;
+  Stream<String> get errors => _errorsController.stream;
 
   Future<void> initialize() async {
     await _service.configure(
@@ -82,6 +87,13 @@ class TrackingBackgroundService {
       );
       _updatesController.add(snapshot);
     });
+
+    _service.on(_kErrorEvent).listen((payload) {
+      final message = payload?['message'] as String?;
+      if (message != null && message.isNotEmpty) {
+        _errorsController.add(message);
+      }
+    });
   }
 
   Future<void> startTracking() async {
@@ -90,7 +102,7 @@ class TrackingBackgroundService {
       await _service.startService();
       await _waitForServiceToRun();
     }
-    _service.invoke(_kStartEvent);
+    await _invokeStartAndWaitForResult();
   }
 
   Future<void> stopTracking() async {
@@ -126,6 +138,14 @@ class TrackingBackgroundService {
         permission == LocationPermission.deniedForever) {
       throw StateError('Location permission is required for tracking.');
     }
+
+    if (!kIsWeb &&
+        defaultTargetPlatform == TargetPlatform.android &&
+        permission == LocationPermission.whileInUse) {
+      throw StateError(
+        'Background tracking requires Location permission set to "Allow all the time" in Android app settings.',
+      );
+    }
   }
 
   Future<void> _waitForServiceToRun() async {
@@ -139,6 +159,46 @@ class TrackingBackgroundService {
     throw StateError('Background service failed to start.');
   }
 
+  Future<void> _invokeStartAndWaitForResult() async {
+    final completer = Completer<void>();
+    late final StreamSubscription<TrackingSnapshot> updatesSubscription;
+    late final StreamSubscription<String> errorsSubscription;
+    Timer? timeout;
+
+    void completeError(Object error) {
+      if (!completer.isCompleted) {
+        completer.completeError(error);
+      }
+    }
+
+    updatesSubscription = updates.listen((snapshot) {
+      if (snapshot.isTracking && !completer.isCompleted) {
+        completer.complete();
+      }
+    });
+
+    errorsSubscription = errors.listen((message) {
+      completeError(StateError(message));
+    });
+
+    timeout = Timer(const Duration(seconds: 8), () {
+      completeError(
+        StateError(
+          'Tracking failed to start. Check Android permission (Allow all the time) and device logs for a service error.',
+        ),
+      );
+    });
+
+    try {
+      _service.invoke(_kStartEvent);
+      await completer.future;
+    } finally {
+      timeout.cancel();
+      await updatesSubscription.cancel();
+      await errorsSubscription.cancel();
+    }
+  }
+
   static DateTime? _parseIso(String? value) {
     if (value == null || value.isEmpty) {
       return null;
@@ -149,14 +209,23 @@ class TrackingBackgroundService {
 
 Future<bool> _onIosBackground(ServiceInstance service) async {
   DartPluginRegistrant.ensureInitialized();
-  await Firebase.initializeApp();
+  try {
+    await Firebase.initializeApp();
+  } catch (_) {}
   return true;
 }
 
 @pragma('vm:entry-point')
 Future<void> _onServiceStart(ServiceInstance service) async {
   DartPluginRegistrant.ensureInitialized();
-  await Firebase.initializeApp();
+  try {
+    await Firebase.initializeApp();
+  } catch (error) {
+    service.invoke(_kErrorEvent, {
+      'message': 'Background Firebase initialization failed: $error',
+    });
+    return;
+  }
 
   final repository = TrackingRepository();
   final prefs = await SharedPreferences.getInstance();
@@ -353,7 +422,20 @@ Future<void> _onServiceStart(ServiceInstance service) async {
     await broadcastSnapshot();
   }
 
-  service.on(_kStartEvent).listen((_) async => start());
-  service.on(_kStopEvent).listen((_) async => stop());
+  service.on(_kStartEvent).listen((_) async {
+    try {
+      await start();
+    } catch (error) {
+      service.invoke(_kErrorEvent, {'message': 'Start failed: $error'});
+    }
+  });
+
+  service.on(_kStopEvent).listen((_) async {
+    try {
+      await stop();
+    } catch (error) {
+      service.invoke(_kErrorEvent, {'message': 'Stop failed: $error'});
+    }
+  });
   await broadcastSnapshot();
 }
