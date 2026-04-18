@@ -981,7 +981,10 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Row(
+                      Wrap(
+                        alignment: WrapAlignment.spaceBetween,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 8,
                         children: [
                           TextButton(
                             onPressed: _isSubmitting
@@ -998,7 +1001,6 @@ class _LoginPageState extends State<LoginPage> {
                                   : 'Create new account',
                             ),
                           ),
-                          const Spacer(),
                           if (!_isCreateAccount)
                             TextButton(
                               onPressed: _isSubmitting ? null : _resetPassword,
@@ -1522,7 +1524,8 @@ class TrackingHomePage extends StatefulWidget {
   State<TrackingHomePage> createState() => _TrackingHomePageState();
 }
 
-class _TrackingHomePageState extends State<TrackingHomePage> {
+class _TrackingHomePageState extends State<TrackingHomePage>
+    with SingleTickerProviderStateMixin {
   static const LatLng _defaultCenter = LatLng(3.1390, 101.6869);
   final TrackingBackgroundService _service = TrackingBackgroundService();
   final BluetoothHRService _hrService = BluetoothHRService();
@@ -1543,7 +1546,7 @@ class _TrackingHomePageState extends State<TrackingHomePage> {
   bool _isPausing = false;
   bool _isResuming = false;
   bool _isFinishing = false;
-  bool _isPanelCollapsed = false;
+  late final AnimationController _panelController;
   bool _isMapFullscreen = false;
   double _finishHoldProgress = 0;
   double _panelDragAccumulator = 0;
@@ -1573,6 +1576,12 @@ class _TrackingHomePageState extends State<TrackingHomePage> {
   @override
   void initState() {
     super.initState();
+    _panelController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+      value: 1.0,
+    );
+    _panelController.addListener(() => setState(() {}));
     _hydrateState();
     _startForegroundPointerStream();
     _setupVoicePace();
@@ -1636,6 +1645,7 @@ class _TrackingHomePageState extends State<TrackingHomePage> {
     _stopLiveMetricsTimer();
     _tts.stop();
     _hrService.dispose();
+    _panelController.dispose();
     super.dispose();
   }
 
@@ -2070,13 +2080,15 @@ class _TrackingHomePageState extends State<TrackingHomePage> {
         color: active
             ? _kBrandOrange.withValues(alpha: 0.85)
             : Colors.black.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: IconButton(
         onPressed: onTap,
         tooltip: tooltip,
-        icon: Icon(icon, color: Colors.white),
+        icon: Icon(icon, color: Colors.white, size: 20),
+        padding: const EdgeInsets.all(6),
+        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
       ),
     );
   }
@@ -2234,36 +2246,41 @@ class _TrackingHomePageState extends State<TrackingHomePage> {
     }
   }
 
+  bool get _isPanelCollapsed => _panelController.value < 0.5;
+
   void _togglePanelCollapse() {
-    if (_isMapFullscreen) {
-      return;
+    if (_isMapFullscreen) return;
+    if (_panelController.value > 0.5) {
+      _panelController.reverse();
+    } else {
+      _panelController.forward();
     }
-    setState(() {
-      _isPanelCollapsed = !_isPanelCollapsed;
-    });
   }
 
   void _onPanelDragStart(DragStartDetails details) {
-    _panelDragAccumulator = 0;
+    if (_isMapFullscreen) return;
+    _panelController.stop();
   }
 
   void _onPanelDragUpdate(DragUpdateDetails details) {
-    if (_isMapFullscreen) {
-      return;
-    }
+    if (_isMapFullscreen) return;
     final delta = details.primaryDelta;
-    if (delta == null) {
-      return;
-    }
-    _panelDragAccumulator += delta;
-    if (!_isPanelCollapsed && _panelDragAccumulator > 24) {
-      setState(() => _isPanelCollapsed = true);
-      _panelDragAccumulator = 0;
-      return;
-    }
-    if (_isPanelCollapsed && _panelDragAccumulator < -24) {
-      setState(() => _isPanelCollapsed = false);
-      _panelDragAccumulator = 0;
+    if (delta == null) return;
+    // Delta > 0 means dragging down (shrinking)
+    _panelController.value -= delta / 180.0;
+  }
+
+  void _onPanelDragEnd(DragEndDetails details) {
+    if (_isMapFullscreen) return;
+    final velocity = details.primaryVelocity ?? 0;
+    if (velocity > 300) {
+      _panelController.reverse(); // Fling down
+    } else if (velocity < -300) {
+      _panelController.forward(); // Fling up
+    } else if (_panelController.value > 0.5) {
+      _panelController.forward();
+    } else {
+      _panelController.reverse();
     }
   }
 
@@ -2355,12 +2372,15 @@ class _TrackingHomePageState extends State<TrackingHomePage> {
               itemBuilder: (context, index) {
                 final device = devices[index];
                 final isConnected =
-                    _hrService.connectedDevice?.remoteId == device.device.remoteId;
+                    _hrService.connectedDevice?.remoteId ==
+                    device.device.remoteId;
 
                 return ListTile(
-                  title: Text(device.device.platformName.isEmpty
-                      ? 'Unknown Device'
-                      : device.device.platformName),
+                  title: Text(
+                    device.device.platformName.isEmpty
+                        ? 'Unknown Device'
+                        : device.device.platformName,
+                  ),
                   subtitle: Text(device.device.remoteId.str),
                   trailing: isConnected
                       ? const Icon(Icons.check, color: Colors.green)
@@ -2368,8 +2388,9 @@ class _TrackingHomePageState extends State<TrackingHomePage> {
                   onTap: isConnected
                       ? null
                       : () async {
-                          final success = await _hrService
-                              .connectToDevice(device.device);
+                          final success = await _hrService.connectToDevice(
+                            device.device,
+                          );
                           if (mounted) {
                             if (success) {
                               ScaffoldMessenger.of(context).showSnackBar(
@@ -2381,8 +2402,7 @@ class _TrackingHomePageState extends State<TrackingHomePage> {
                             } else {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
-                                  content:
-                                      Text('Failed to connect to device'),
+                                  content: Text('Failed to connect to device'),
                                 ),
                               );
                             }
@@ -2416,7 +2436,7 @@ class _TrackingHomePageState extends State<TrackingHomePage> {
     final bottomInset = MediaQuery.paddingOf(context).bottom;
     final mapControlsBottom = _isMapFullscreen
         ? 20.0 + bottomInset
-        : (_isPanelCollapsed ? 250.0 : 390.0) + bottomInset;
+        : (340.0 + (30.0 * _panelController.value)) + bottomInset;
     return Scaffold(
       body: Stack(
         children: [
@@ -2536,51 +2556,62 @@ class _TrackingHomePageState extends State<TrackingHomePage> {
                       ],
                     ),
                   ),
-                  const Spacer(),
-                  _buildIconGlassButton(
-                    icon: _voicePaceEnabled
-                        ? Icons.volume_up
-                        : Icons.volume_off,
-                    onTap: () {
-                      setState(() => _voicePaceEnabled = !_voicePaceEnabled);
-                    },
-                    active: _voicePaceEnabled,
-                    tooltip: _voicePaceEnabled
-                        ? 'Disable voice pace'
-                        : 'Enable voice pace',
-                  ),
-                  const SizedBox(width: 8),
-                  _buildIconGlassButton(
-                    icon: Icons.layers_outlined,
-                    onTap: _cycleMapTheme,
-                    tooltip: 'Map style: ${activeMapTheme.label}',
-                  ),
-                  const SizedBox(width: 8),
-                  _buildIconGlassButton(
-                    icon: Icons.text_fields_rounded,
-                    onTap: _cycleStatsScale,
-                    tooltip: 'Stats size: $_statsScaleLabel',
-                    active: _statsScale > 1.0,
-                  ),
-                  const SizedBox(width: 8),
-                  _buildIconGlassButton(
-                    icon: Icons.favorite,
-                    onTap: _showHRDeviceSelector,
-                    tooltip: _hrService.isConnected
-                        ? 'HR Monitor Connected'
-                        : 'Connect HR Monitor',
-                    active: _hrService.isConnected,
-                  ),
-                  const SizedBox(width: 8),
-                  _buildIconGlassButton(
-                    icon: _isMapFullscreen
-                        ? Icons.fullscreen_exit
-                        : Icons.fullscreen,
-                    onTap: _toggleMapFullscreen,
-                    tooltip: _isMapFullscreen
-                        ? 'Exit full screen map'
-                        : 'Full screen map',
-                    active: _isMapFullscreen,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      reverse: true,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          _buildIconGlassButton(
+                            icon: _voicePaceEnabled
+                                ? Icons.volume_up
+                                : Icons.volume_off,
+                            onTap: () {
+                              setState(() => _voicePaceEnabled = !_voicePaceEnabled);
+                            },
+                            active: _voicePaceEnabled,
+                            tooltip: _voicePaceEnabled
+                                ? 'Disable voice pace'
+                                : 'Enable voice pace',
+                          ),
+                          const SizedBox(width: 4),
+                          _buildIconGlassButton(
+                            icon: Icons.layers_outlined,
+                            onTap: _cycleMapTheme,
+                            tooltip: 'Map style: ${activeMapTheme.label}',
+                          ),
+                          const SizedBox(width: 4),
+                          _buildIconGlassButton(
+                            icon: Icons.text_fields_rounded,
+                            onTap: _cycleStatsScale,
+                            tooltip: 'Stats size: $_statsScaleLabel',
+                            active: _statsScale > 1.0,
+                          ),
+                          const SizedBox(width: 4),
+                          _buildIconGlassButton(
+                            icon: Icons.favorite,
+                            onTap: _showHRDeviceSelector,
+                            tooltip: _hrService.isConnected
+                                ? 'HR Monitor Connected'
+                                : 'Connect HR Monitor',
+                            active: _hrService.isConnected,
+                          ),
+                          const SizedBox(width: 4),
+                          _buildIconGlassButton(
+                            icon: _isMapFullscreen
+                                ? Icons.fullscreen_exit
+                                : Icons.fullscreen,
+                            onTap: _toggleMapFullscreen,
+                            tooltip: _isMapFullscreen
+                                ? 'Exit full screen map'
+                                : 'Full screen map',
+                            active: _isMapFullscreen,
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -2589,7 +2620,11 @@ class _TrackingHomePageState extends State<TrackingHomePage> {
           Positioned(
             right: 14,
             bottom: mapControlsBottom,
-            child: Column(
+            child: IgnorePointer(
+              ignoring: _panelController.value > 0.5,
+              child: FadeTransition(
+                opacity: ReverseAnimation(_panelController),
+                child: Column(
               children: [
                 _buildIconGlassButton(
                   icon: Icons.my_location,
@@ -2611,6 +2646,8 @@ class _TrackingHomePageState extends State<TrackingHomePage> {
                 ),
               ],
             ),
+              ),
+            ),
           ),
           if (!_isMapFullscreen)
             Align(
@@ -2619,9 +2656,8 @@ class _TrackingHomePageState extends State<TrackingHomePage> {
                 behavior: HitTestBehavior.translucent,
                 onVerticalDragStart: _onPanelDragStart,
                 onVerticalDragUpdate: _onPanelDragUpdate,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOutCubic,
+                onVerticalDragEnd: _onPanelDragEnd,
+                child: Container(
                   width: double.infinity,
                   padding: EdgeInsets.fromLTRB(14, 12, 14, 12 + bottomInset),
                   decoration: BoxDecoration(
@@ -2638,9 +2674,9 @@ class _TrackingHomePageState extends State<TrackingHomePage> {
                     ],
                   ),
                   child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                       GestureDetector(
                         onTap: _togglePanelCollapse,
                         child: Center(
@@ -2723,22 +2759,30 @@ class _TrackingHomePageState extends State<TrackingHomePage> {
                               icon: Icons.speed,
                             ),
                           ),
-                          const SizedBox(width: 60),
                         ],
                       ),
-                      if (_isPanelCollapsed) ...[
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Summary mode. Swipe up for full details.',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.black54,
-                            fontWeight: FontWeight.w600,
+                      SizeTransition(
+                        sizeFactor: ReverseAnimation(_panelController),
+                        axisAlignment: -1.0,
+                        child: const Padding(
+                          padding: EdgeInsets.only(top: 8.0),
+                          child: Text(
+                            'Summary mode. Swipe up for full details.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.black54,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
-                      ],
-                      if (!_isPanelCollapsed) ...[
-                        const SizedBox(height: 10),
+                      ),
+                      SizeTransition(
+                        sizeFactor: _panelController,
+                        axisAlignment: -1.0,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const SizedBox(height: 10),
                         Row(
                           children: [
                             Expanded(
@@ -2758,9 +2802,8 @@ class _TrackingHomePageState extends State<TrackingHomePage> {
                                 icon: Icons.terrain,
                               ),
                             ),
-                            const SizedBox(width: 60),
-                          ],
-                        ),
+                        ],
+                      ),
                         const SizedBox(height: 8),
                         Row(
                           children: [
@@ -2781,9 +2824,8 @@ class _TrackingHomePageState extends State<TrackingHomePage> {
                                 icon: Icons.flash_on,
                               ),
                             ),
-                            const SizedBox(width: 60),
-                          ],
-                        ),
+                        ],
+                      ),
                         const SizedBox(height: 8),
                         Row(
                           children: [
@@ -2806,9 +2848,8 @@ class _TrackingHomePageState extends State<TrackingHomePage> {
                                 icon: Icons.favorite_outline,
                               ),
                             ),
-                            const SizedBox(width: 60),
-                          ],
-                        ),
+                        ],
+                      ),
                         const SizedBox(height: 10),
                         Wrap(
                           spacing: 8,
@@ -2848,6 +2889,8 @@ class _TrackingHomePageState extends State<TrackingHomePage> {
                           ),
                         ),
                       ],
+                    ),
+                  ),
                       const SizedBox(height: 8),
                       Row(
                         children: [
