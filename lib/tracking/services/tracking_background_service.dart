@@ -21,11 +21,17 @@ const String _kSessionId = 'sessionId';
 const String _kStartedAtIso = 'startedAtIso';
 const String _kIsTracking = 'isTracking';
 const String _kIsAutoPaused = 'isAutoPaused';
+const String _kIsManuallyPaused = 'isManuallyPaused';
+const String _kElapsedSeconds = 'elapsedSeconds';
+const String _kAccumulatedActiveSeconds = 'accumulatedActiveSeconds';
+const String _kLastResumedAtIso = 'lastResumedAtIso';
 const String _kLatitude = 'latitude';
 const String _kLongitude = 'longitude';
 const String _kUpdateEvent = 'tracking_update';
 const String _kStartEvent = 'start_tracking';
 const String _kStopEvent = 'stop_tracking';
+const String _kPauseEvent = 'pause_tracking';
+const String _kResumeEvent = 'resume_tracking';
 const String _kErrorEvent = 'tracking_error';
 const double _kMaxHorizontalAccuracyMeters = 25;
 const double _kMinMovementMeters = 3;
@@ -75,11 +81,13 @@ class TrackingBackgroundService {
       final snapshot = TrackingSnapshot(
         isTracking: payload?[_kIsTracking] == true,
         isAutoPaused: payload?[_kIsAutoPaused] == true,
+        isManuallyPaused: payload?[_kIsManuallyPaused] == true,
         distanceMeters: (payload?[_kDistanceMeters] as num?)?.toDouble() ?? 0,
         elevationGainMeters:
             (payload?[_kElevationGainMeters] as num?)?.toDouble() ?? 0,
         caloriesKcal: (payload?[_kCaloriesKcal] as num?)?.toDouble() ?? 0,
         points: (payload?[_kPoints] as num?)?.toInt() ?? 0,
+        elapsedSeconds: (payload?[_kElapsedSeconds] as num?)?.toInt() ?? 0,
         sessionId: payload?[_kSessionId] as String?,
         startedAt: _parseIso(payload?[_kStartedAtIso] as String?),
         latitude: (payload?[_kLatitude] as num?)?.toDouble(),
@@ -109,15 +117,25 @@ class TrackingBackgroundService {
     _service.invoke(_kStopEvent);
   }
 
+  Future<void> pauseTracking() async {
+    _service.invoke(_kPauseEvent);
+  }
+
+  Future<void> resumeTracking() async {
+    _service.invoke(_kResumeEvent);
+  }
+
   Future<TrackingSnapshot> restoreLatestSnapshot() async {
     final prefs = await SharedPreferences.getInstance();
     return TrackingSnapshot(
       isTracking: prefs.getBool(_kIsTracking) ?? false,
       isAutoPaused: prefs.getBool(_kIsAutoPaused) ?? false,
+      isManuallyPaused: prefs.getBool(_kIsManuallyPaused) ?? false,
       distanceMeters: prefs.getDouble(_kDistanceMeters) ?? 0,
       elevationGainMeters: prefs.getDouble(_kElevationGainMeters) ?? 0,
       caloriesKcal: prefs.getDouble(_kCaloriesKcal) ?? 0,
       points: prefs.getInt(_kPoints) ?? 0,
+      elapsedSeconds: prefs.getInt(_kElapsedSeconds) ?? 0,
       sessionId: prefs.getString(_kSessionId),
       startedAt: _parseIso(prefs.getString(_kStartedAtIso)),
       latitude: prefs.getDouble(_kLatitude),
@@ -247,16 +265,34 @@ Future<void> _onServiceStart(ServiceInstance service) async {
   var startedAt = DateTime.tryParse(prefs.getString(_kStartedAtIso) ?? '');
   var isTracking = prefs.getBool(_kIsTracking) ?? false;
   var isAutoPaused = prefs.getBool(_kIsAutoPaused) ?? false;
+  var isManuallyPaused = prefs.getBool(_kIsManuallyPaused) ?? false;
+  var accumulatedActiveSeconds = prefs.getInt(_kAccumulatedActiveSeconds) ?? 0;
+  var lastResumedAt = DateTime.tryParse(
+    prefs.getString(_kLastResumedAtIso) ?? '',
+  );
   DateTime? stationarySince;
+
+  int currentElapsedSeconds() {
+    if (!isTracking) {
+      return accumulatedActiveSeconds;
+    }
+    if (lastResumedAt == null) {
+      return accumulatedActiveSeconds;
+    }
+    final extra = DateTime.now().toUtc().difference(lastResumedAt!).inSeconds;
+    return accumulatedActiveSeconds + (extra > 0 ? extra : 0);
+  }
 
   Future<void> broadcastSnapshot() async {
     final payload = <String, dynamic>{
       _kIsTracking: isTracking,
       _kIsAutoPaused: isAutoPaused,
+      _kIsManuallyPaused: isManuallyPaused,
       _kDistanceMeters: distanceMeters,
       _kElevationGainMeters: elevationGainMeters,
       _kCaloriesKcal: caloriesKcal,
       _kPoints: points,
+      _kElapsedSeconds: currentElapsedSeconds(),
       _kSessionId: sessionId,
       _kStartedAtIso: startedAt?.toIso8601String(),
       _kLatitude: lastPoint?.latitude,
@@ -265,10 +301,13 @@ Future<void> _onServiceStart(ServiceInstance service) async {
     service.invoke(_kUpdateEvent, payload);
     await prefs.setBool(_kIsTracking, isTracking);
     await prefs.setBool(_kIsAutoPaused, isAutoPaused);
+    await prefs.setBool(_kIsManuallyPaused, isManuallyPaused);
     await prefs.setDouble(_kDistanceMeters, distanceMeters);
     await prefs.setDouble(_kElevationGainMeters, elevationGainMeters);
     await prefs.setDouble(_kCaloriesKcal, caloriesKcal);
     await prefs.setInt(_kPoints, points);
+    await prefs.setInt(_kElapsedSeconds, currentElapsedSeconds());
+    await prefs.setInt(_kAccumulatedActiveSeconds, accumulatedActiveSeconds);
     if (sessionId != null) {
       await prefs.setString(_kSessionId, sessionId!);
     } else {
@@ -278,6 +317,14 @@ Future<void> _onServiceStart(ServiceInstance service) async {
       await prefs.setString(_kStartedAtIso, startedAt!.toIso8601String());
     } else {
       await prefs.remove(_kStartedAtIso);
+    }
+    if (lastResumedAt != null) {
+      await prefs.setString(
+        _kLastResumedAtIso,
+        lastResumedAt!.toIso8601String(),
+      );
+    } else {
+      await prefs.remove(_kLastResumedAtIso);
     }
     if (lastPoint != null) {
       await prefs.setDouble(_kLatitude, lastPoint!.latitude);
@@ -301,6 +348,9 @@ Future<void> _onServiceStart(ServiceInstance service) async {
     lastPoint = null;
     isTracking = true;
     isAutoPaused = false;
+    isManuallyPaused = false;
+    accumulatedActiveSeconds = 0;
+    lastResumedAt = DateTime.now().toUtc();
     stationarySince = null;
 
     final userId = FirebaseAuth.instance.currentUser?.uid;
@@ -334,6 +384,12 @@ Future<void> _onServiceStart(ServiceInstance service) async {
             speedMps: position.speed >= 0 ? position.speed : null,
             altitudeMeters: position.altitude,
           );
+
+          if (isManuallyPaused) {
+            lastPoint = point;
+            await broadcastSnapshot();
+            return;
+          }
 
           final previousAutoPaused = isAutoPaused;
           final nowUtc = DateTime.now().toUtc();
@@ -376,7 +432,7 @@ Future<void> _onServiceStart(ServiceInstance service) async {
               return;
             }
 
-            if (!isAutoPaused) {
+            if (!isAutoPaused && !isManuallyPaused) {
               distanceMeters += segmentMeters;
               caloriesKcal = (distanceMeters / 1000) * _kCaloriesPerKm;
             }
@@ -392,6 +448,8 @@ Future<void> _onServiceStart(ServiceInstance service) async {
             elevationGainMeters: elevationGainMeters,
             caloriesKcal: caloriesKcal,
             isAutoPaused: isAutoPaused,
+            isManuallyPaused: isManuallyPaused,
+            elapsedSeconds: currentElapsedSeconds(),
             points: points,
           );
           await broadcastSnapshot();
@@ -413,6 +471,11 @@ Future<void> _onServiceStart(ServiceInstance service) async {
     isTracking = false;
     await positionSubscription?.cancel();
     positionSubscription = null;
+    if (lastResumedAt != null) {
+      final extra = DateTime.now().toUtc().difference(lastResumedAt!).inSeconds;
+      accumulatedActiveSeconds += extra > 0 ? extra : 0;
+      lastResumedAt = null;
+    }
 
     if (sessionId != null) {
       await repository.closeSession(
@@ -421,6 +484,7 @@ Future<void> _onServiceStart(ServiceInstance service) async {
         distanceMeters: distanceMeters,
         elevationGainMeters: elevationGainMeters,
         caloriesKcal: caloriesKcal,
+        elapsedSeconds: accumulatedActiveSeconds,
         points: points,
       );
     }
@@ -428,8 +492,55 @@ Future<void> _onServiceStart(ServiceInstance service) async {
     sessionId = null;
     startedAt = null;
     lastPoint = null;
+    distanceMeters = 0;
+    elevationGainMeters = 0;
+    caloriesKcal = 0;
+    points = 0;
+    isAutoPaused = false;
+    isManuallyPaused = false;
+    accumulatedActiveSeconds = 0;
+    lastResumedAt = null;
+    stationarySince = null;
+    await broadcastSnapshot();
+  }
+
+  Future<void> pause() async {
+    if (!isTracking || isManuallyPaused) {
+      return;
+    }
+    if (lastResumedAt != null) {
+      final extra = DateTime.now().toUtc().difference(lastResumedAt!).inSeconds;
+      accumulatedActiveSeconds += extra > 0 ? extra : 0;
+      lastResumedAt = null;
+    }
+    isManuallyPaused = true;
     isAutoPaused = false;
     stationarySince = null;
+    if (sessionId != null) {
+      await repository.updatePauseState(
+        sessionId: sessionId!,
+        isManuallyPaused: true,
+        elapsedSeconds: accumulatedActiveSeconds,
+      );
+    }
+    await broadcastSnapshot();
+  }
+
+  Future<void> resume() async {
+    if (!isTracking || !isManuallyPaused) {
+      return;
+    }
+    isManuallyPaused = false;
+    isAutoPaused = false;
+    stationarySince = null;
+    lastResumedAt = DateTime.now().toUtc();
+    if (sessionId != null) {
+      await repository.updatePauseState(
+        sessionId: sessionId!,
+        isManuallyPaused: false,
+        elapsedSeconds: accumulatedActiveSeconds,
+      );
+    }
     await broadcastSnapshot();
   }
 
@@ -446,6 +557,20 @@ Future<void> _onServiceStart(ServiceInstance service) async {
       await stop();
     } catch (error) {
       service.invoke(_kErrorEvent, {'message': 'Stop failed: $error'});
+    }
+  });
+  service.on(_kPauseEvent).listen((_) async {
+    try {
+      await pause();
+    } catch (error) {
+      service.invoke(_kErrorEvent, {'message': 'Pause failed: $error'});
+    }
+  });
+  service.on(_kResumeEvent).listen((_) async {
+    try {
+      await resume();
+    } catch (error) {
+      service.invoke(_kErrorEvent, {'message': 'Resume failed: $error'});
     }
   });
   await broadcastSnapshot();

@@ -7,7 +7,12 @@ import 'package:firebase_core/firebase_core.dart';
 
 class TrackingRepository {
   TrackingRepository({FirebaseFirestore? firestore})
-    : _firestore = firestore ?? FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'fakestrava');
+    : _firestore =
+          firestore ??
+          FirebaseFirestore.instanceFor(
+            app: Firebase.app(),
+            databaseId: 'fakestrava',
+          );
 
   final FirebaseFirestore _firestore;
   bool _cloudSyncEnabled = true;
@@ -18,7 +23,8 @@ class TrackingRepository {
     }
     final message = error.message?.toLowerCase() ?? '';
     return error.code == 'not-found' &&
-        (message.contains('database (default) does not exist') || message.contains('database fakestrava does not exist'));
+        (message.contains('database (default) does not exist') ||
+            message.contains('database fakestrava does not exist'));
   }
 
   void _disableCloudSync(Object error) {
@@ -48,6 +54,8 @@ class TrackingRepository {
           'elevationGainMeters': 0,
           'caloriesKcal': 0,
           'isAutoPaused': false,
+          'isManuallyPaused': false,
+          'activeDurationSeconds': 0,
           'points': 0,
         })
         .catchError((Object error) {
@@ -64,6 +72,8 @@ class TrackingRepository {
     required double elevationGainMeters,
     required double caloriesKcal,
     required bool isAutoPaused,
+    required bool isManuallyPaused,
+    required int elapsedSeconds,
     required int points,
   }) async {
     if (!_cloudSyncEnabled) {
@@ -82,6 +92,9 @@ class TrackingRepository {
       'elevationGainMeters': elevationGainMeters,
       'caloriesKcal': caloriesKcal,
       'isAutoPaused': isAutoPaused,
+      'isManuallyPaused': isManuallyPaused,
+      'activeDurationSeconds': elapsedSeconds,
+      'status': isManuallyPaused ? 'paused' : 'active',
       'points': points,
     });
 
@@ -98,6 +111,7 @@ class TrackingRepository {
     required double distanceMeters,
     required double elevationGainMeters,
     required double caloriesKcal,
+    required int elapsedSeconds,
     required int points,
   }) async {
     if (!_cloudSyncEnabled) {
@@ -114,7 +128,34 @@ class TrackingRepository {
           'elevationGainMeters': elevationGainMeters,
           'caloriesKcal': caloriesKcal,
           'isAutoPaused': false,
+          'isManuallyPaused': false,
+          'activeDurationSeconds': elapsedSeconds,
           'points': points,
+        })
+        .catchError((Object error) {
+          if (_isMissingDatabaseError(error)) {
+            _disableCloudSync(error);
+          }
+        });
+  }
+
+  Future<void> updatePauseState({
+    required String sessionId,
+    required bool isManuallyPaused,
+    required int elapsedSeconds,
+  }) async {
+    if (!_cloudSyncEnabled) {
+      return;
+    }
+    _firestore
+        .collection('tracking_sessions')
+        .doc(sessionId)
+        .update({
+          'updatedAt': FieldValue.serverTimestamp(),
+          'status': isManuallyPaused ? 'paused' : 'active',
+          'isAutoPaused': false,
+          'isManuallyPaused': isManuallyPaused,
+          'activeDurationSeconds': elapsedSeconds,
         })
         .catchError((Object error) {
           if (_isMissingDatabaseError(error)) {
