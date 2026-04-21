@@ -38,6 +38,8 @@ class TrackingRepository {
     required String sessionId,
     required DateTime startedAt,
     required String? userId,
+    String? userDisplayName,
+    String? username,
   }) async {
     if (!_cloudSyncEnabled) {
       return;
@@ -47,6 +49,8 @@ class TrackingRepository {
         .doc(sessionId)
         .set({
           'userId': userId,
+          'userDisplayName': userDisplayName,
+          'username': username,
           'startedAt': startedAt.toIso8601String(),
           'updatedAt': FieldValue.serverTimestamp(),
           'status': 'active',

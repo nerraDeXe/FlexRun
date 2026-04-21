@@ -12,6 +12,9 @@ import '../models/tracking_point.dart';
 import '../models/tracking_snapshot.dart';
 import 'distance_calculator.dart';
 import 'tracking_repository.dart';
+import 'calorie_calculation_util.dart';
+import 'package:fake_strava/profile/user_metrics.dart';
+import 'package:fake_strava/profile/user_metrics_repository.dart';
 
 const String _kDistanceMeters = 'distanceMeters';
 const String _kElevationGainMeters = 'elevationGainMeters';
@@ -35,7 +38,6 @@ const String _kResumeEvent = 'resume_tracking';
 const String _kErrorEvent = 'tracking_error';
 const double _kMaxHorizontalAccuracyMeters = 25;
 const double _kMinMovementMeters = 3;
-const double _kCaloriesPerKm = 62;
 const Duration _kAutoPauseDelay = Duration(seconds: 20);
 const double _kAutoPauseSpeedThresholdMps = 0.8;
 const double _kAutoResumeSpeedThresholdMps = 1.2;
@@ -254,6 +256,7 @@ Future<void> _onServiceStart(ServiceInstance service) async {
   }
 
   final repository = TrackingRepository();
+  final metricsRepository = UserMetricsRepository();
   final prefs = await SharedPreferences.getInstance();
   StreamSubscription<Position>? positionSubscription;
   TrackingPoint? lastPoint;
@@ -271,6 +274,7 @@ Future<void> _onServiceStart(ServiceInstance service) async {
     prefs.getString(_kLastResumedAtIso) ?? '',
   );
   DateTime? stationarySince;
+  UserMetrics? userMetrics;
 
   int currentElapsedSeconds() {
     if (!isTracking) {
@@ -354,11 +358,29 @@ Future<void> _onServiceStart(ServiceInstance service) async {
     stationarySince = null;
 
     final userId = FirebaseAuth.instance.currentUser?.uid;
+    final user = FirebaseAuth.instance.currentUser;
+    final userDisplayName =
+        (user?.displayName != null && user!.displayName!.trim().isNotEmpty)
+        ? user.displayName!.trim()
+        : (user?.email?.split('@').first ?? 'Runner');
+    final username = userDisplayName.toLowerCase().replaceAll(' ', '_');
+
+    // Load user metrics for personalized calorie calculation
+    if (userId != null) {
+      try {
+        userMetrics = await metricsRepository.getUserMetrics(userId);
+      } catch (e) {
+        debugPrint('Failed to load user metrics: $e');
+        userMetrics = null;
+      }
+    }
 
     await repository.createSession(
       sessionId: sessionId!,
       startedAt: startedAt!,
       userId: userId,
+      userDisplayName: userDisplayName,
+      username: username,
     );
     await broadcastSnapshot();
 
@@ -434,7 +456,14 @@ Future<void> _onServiceStart(ServiceInstance service) async {
 
             if (!isAutoPaused && !isManuallyPaused) {
               distanceMeters += segmentMeters;
-              caloriesKcal = (distanceMeters / 1000) * _kCaloriesPerKm;
+              // Use personalized calorie calculation if user metrics are available
+              final elapsedSeconds = currentElapsedSeconds();
+              caloriesKcal = CalorieCalculationUtil.calculateAdvancedCalories(
+                metrics: userMetrics,
+                distanceMeters: distanceMeters,
+                durationSeconds: elapsedSeconds,
+                elevationGainMeters: elevationGainMeters,
+              );
             }
           }
 

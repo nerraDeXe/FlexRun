@@ -12,6 +12,20 @@ class ProgressPage extends StatelessWidget {
 
   final String displayName;
 
+  String _progressErrorMessage(Object? error) {
+    if (error is FirebaseException) {
+      final message = error.message?.toLowerCase() ?? '';
+      final missingDatabase =
+          error.code == 'not-found' &&
+          (message.contains('database (default) does not exist') ||
+              message.contains('database fakestrava does not exist'));
+      if (missingDatabase) {
+        return 'Cloud progress is unavailable because Firestore is not set up for this project yet.\n\nOpen Firebase Console -> Firestore Database and create database "fakestrava".';
+      }
+    }
+    return 'Unable to load progress.\n\n$error';
+  }
+
   @override
   Widget build(BuildContext context) {
     if (Firebase.apps.isEmpty) {
@@ -35,7 +49,7 @@ class ProgressPage extends StatelessWidget {
           return Center(
             child: Padding(
               padding: const EdgeInsets.all(20),
-              child: Text('Unable to load progress.\n\n${snapshot.error}'),
+              child: Text(_progressErrorMessage(snapshot.error)),
             ),
           );
         }

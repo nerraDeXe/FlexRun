@@ -9,9 +9,11 @@ import 'package:flutter/material.dart';
 import 'package:fake_strava/core/theme.dart';
 import 'package:fake_strava/auth/pages/account_security_page.dart';
 import 'package:fake_strava/tracking/pages/workout_history_page.dart';
+import 'user_metrics.dart';
+import 'user_metrics_form_dialog.dart';
+import 'user_metrics_repository.dart';
 
-
-class ProfilePage extends StatelessWidget {
+class ProfilePage extends StatefulWidget {
   const ProfilePage({
     super.key,
     required this.displayName,
@@ -20,6 +22,86 @@ class ProfilePage extends StatelessWidget {
 
   final String displayName;
   final Future<void> Function() onLogout;
+
+  @override
+  State<ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends State<ProfilePage> {
+  late UserMetricsRepository _metricsRepository;
+  UserMetrics? _userMetrics;
+
+  String _metricsErrorMessage(Object error, {required bool isSave}) {
+    if (error is FirebaseException) {
+      final message = error.message?.toLowerCase() ?? '';
+      final missingDatabase =
+          error.code == 'not-found' &&
+          (message.contains('database (default) does not exist') ||
+              message.contains('database fakestrava does not exist'));
+      if (missingDatabase) {
+        return 'Cloud database is not provisioned yet. Open Firebase Console and create Firestore database "fakestrava".';
+      }
+    }
+
+    final action = isSave ? 'saving' : 'loading';
+    return 'Error $action metrics: $error';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _metricsRepository = UserMetricsRepository();
+    _loadUserMetrics();
+  }
+
+  Future<void> _loadUserMetrics() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      final metrics = await _metricsRepository.getUserMetrics(user.uid);
+      setState(() {
+        _userMetrics = metrics;
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_metricsErrorMessage(e, isSave: false))),
+        );
+      }
+    }
+  }
+
+  Future<void> _showMetricsDialog() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => UserMetricsFormDialog(
+        initialMetrics: _userMetrics,
+        onSave: (metrics) async {
+          try {
+            await _metricsRepository.saveUserMetrics(user.uid, metrics);
+            setState(() {
+              _userMetrics = metrics;
+            });
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Metrics saved successfully')),
+              );
+            }
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(_metricsErrorMessage(e, isSave: true))),
+              );
+            }
+          }
+        },
+      ),
+    );
+  }
 
   Future<void> _openHistory(BuildContext context) async {
     if (Firebase.apps.isEmpty) {
@@ -82,7 +164,9 @@ class ProfilePage extends StatelessWidget {
                   backgroundColor: kBrandOrange,
                   foregroundColor: Colors.white,
                   child: Text(
-                    displayName.isNotEmpty ? displayName[0].toUpperCase() : 'R',
+                    widget.displayName.isNotEmpty
+                        ? widget.displayName[0].toUpperCase()
+                        : 'R',
                     style: const TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w800,
@@ -95,7 +179,7 @@ class ProfilePage extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        displayName,
+                        widget.displayName,
                         style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w800,
@@ -106,6 +190,116 @@ class ProfilePage extends StatelessWidget {
                     ],
                   ),
                 ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.monitor_weight_outlined),
+                    const SizedBox(width: 12),
+                    const Text(
+                      'Your Metrics',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const Spacer(),
+                    TextButton.icon(
+                      onPressed: _showMetricsDialog,
+                      icon: const Icon(Icons.edit),
+                      label: const Text('Edit'),
+                    ),
+                  ],
+                ),
+                if (_userMetrics != null) ...[
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 16,
+                    runSpacing: 8,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Height',
+                            style: TextStyle(fontSize: 12, color: Colors.grey),
+                          ),
+                          Text(
+                            '${_userMetrics!.heightCm.toStringAsFixed(1)} cm',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Weight',
+                            style: TextStyle(fontSize: 12, color: Colors.grey),
+                          ),
+                          Text(
+                            '${_userMetrics!.weightKg.toStringAsFixed(1)} kg',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Age',
+                            style: TextStyle(fontSize: 12, color: Colors.grey),
+                          ),
+                          Text(
+                            '${_userMetrics!.age} years',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Gender',
+                            style: TextStyle(fontSize: 12, color: Colors.grey),
+                          ),
+                          Text(
+                            _userMetrics!.gender == 'M' ? 'Male' : 'Female',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ] else
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      'No metrics set. Add your metrics for accurate calorie tracking.',
+                      style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -135,7 +329,7 @@ class ProfilePage extends StatelessWidget {
                 title: const Text('Log out'),
                 subtitle: const Text('Sign out of the app'),
                 trailing: const Icon(Icons.chevron_right),
-                onTap: onLogout,
+                onTap: widget.onLogout,
               ),
             ],
           ),
@@ -144,4 +338,3 @@ class ProfilePage extends StatelessWidget {
     );
   }
 }
-

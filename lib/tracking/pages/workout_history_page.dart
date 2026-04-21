@@ -2,8 +2,10 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:latlong2/latlong.dart';
 
 // Import our new internal files (will be available project-wide)
 import 'package:fake_strava/core/theme.dart';
@@ -17,6 +19,20 @@ class WorkoutHistoryPage extends StatelessWidget {
 
   final FirebaseFirestore firestore;
   final ValueChanged<String> onShareMessage;
+
+  String _historyErrorMessage(Object? error) {
+    if (error is FirebaseException) {
+      final message = error.message?.toLowerCase() ?? '';
+      final missingDatabase =
+          error.code == 'not-found' &&
+          (message.contains('database (default) does not exist') ||
+              message.contains('database fakestrava does not exist'));
+      if (missingDatabase) {
+        return 'Cloud history is unavailable because Firestore is not set up for this project yet.\n\nOpen Firebase Console -> Firestore Database and create database "fakestrava".';
+      }
+    }
+    return 'Unable to load workout history.\n\n$error';
+  }
 
   Future<void> _exportSessionGpx(String sessionId) async {
     final pointSnapshots = await firestore
@@ -182,17 +198,11 @@ class WorkoutHistoryPage extends StatelessWidget {
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            final errorText = snapshot.error.toString().toLowerCase();
-            final missingDefaultDatabase = errorText.contains(
-              'database (default) does not exist',
-            );
             return Center(
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Text(
-                  missingDefaultDatabase
-                      ? 'Cloud history is unavailable because Firestore is not set up for this project yet.\n\nOpen Firebase Console -> Firestore Database and create the default database.'
-                      : 'Unable to load workout history.\n\n${snapshot.error}',
+                  _historyErrorMessage(snapshot.error),
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -338,112 +348,148 @@ class WorkoutHistoryPage extends StatelessWidget {
                     : 0.0;
                 final isFinished = status == 'stopped';
                 return Card(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    '${distanceKm.toStringAsFixed(2)} km',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 20,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => _WorkoutDetailPage(
+                            firestore: firestore,
+                            sessionId: sessionId,
+                            sessionData: data,
+                          ),
+                        ),
+                      );
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '${distanceKm.toStringAsFixed(2)} km',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 20,
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    _formatWorkoutDate(startedAt),
-                                    style: const TextStyle(
-                                      color: Colors.black54,
-                                      fontWeight: FontWeight.w500,
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      _formatWorkoutDate(startedAt),
+                                      style: const TextStyle(
+                                        color: Colors.black54,
+                                        fontWeight: FontWeight.w500,
+                                      ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: isFinished
-                                    ? Colors.green.withValues(alpha: 0.12)
-                                    : Colors.orange.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: Text(
-                                isFinished ? 'Finished' : status.toUpperCase(),
-                                style: TextStyle(
-                                  color: isFinished
-                                      ? const Color(0xFF2E7D32)
-                                      : const Color(0xFFE65100),
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 11,
+                                  ],
                                 ),
                               ),
-                            ),
-                            const SizedBox(width: 6),
-                            IconButton.filledTonal(
-                              tooltip: 'Export GPX',
-                              icon: const Icon(Icons.file_download_outlined),
-                              onPressed: () => _exportSessionGpx(sessionId),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            _metricPill(
-                              icon: Icons.timer_outlined,
-                              label: 'Time',
-                              value: _formatDuration(
-                                startedAt,
-                                endedAt,
-                                durationSeconds: durationSeconds,
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: isFinished
+                                      ? Colors.green.withValues(alpha: 0.12)
+                                      : Colors.orange.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  isFinished
+                                      ? 'Finished'
+                                      : status.toUpperCase(),
+                                  style: TextStyle(
+                                    color: isFinished
+                                        ? const Color(0xFF2E7D32)
+                                        : const Color(0xFFE65100),
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 11,
+                                  ),
+                                ),
                               ),
-                            ),
-                            _metricPill(
-                              icon: Icons.speed,
-                              label: 'Pace',
-                              value: pace > 0
-                                  ? '${pace.toStringAsFixed(2)} min/km'
-                                  : '-- min/km',
-                            ),
-                            _metricPill(
-                              icon: Icons.flash_on,
-                              label: 'Speed',
-                              value: avgSpeedKmh > 0
-                                  ? '${avgSpeedKmh.toStringAsFixed(2)} km/h'
-                                  : '-- km/h',
-                            ),
-                            _metricPill(
-                              icon: Icons.local_fire_department,
-                              label: 'Calories',
-                              value: '${calories.toStringAsFixed(0)} kcal',
-                            ),
-                            _metricPill(
-                              icon: Icons.terrain,
-                              label: 'Elev',
-                              value: '+${elevation.toStringAsFixed(0)} m',
-                            ),
-                            _metricPill(
-                              icon: Icons.location_on_outlined,
-                              label: 'Points',
-                              value: '$points',
-                            ),
-                          ],
-                        ),
-                      ],
+                              const SizedBox(width: 6),
+                              IconButton.filledTonal(
+                                tooltip: 'Export GPX',
+                                icon: const Icon(Icons.file_download_outlined),
+                                onPressed: () => _exportSessionGpx(sessionId),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              _metricPill(
+                                icon: Icons.timer_outlined,
+                                label: 'Time',
+                                value: _formatDuration(
+                                  startedAt,
+                                  endedAt,
+                                  durationSeconds: durationSeconds,
+                                ),
+                              ),
+                              _metricPill(
+                                icon: Icons.speed,
+                                label: 'Pace',
+                                value: pace > 0
+                                    ? '${pace.toStringAsFixed(2)} min/km'
+                                    : '-- min/km',
+                              ),
+                              _metricPill(
+                                icon: Icons.flash_on,
+                                label: 'Speed',
+                                value: avgSpeedKmh > 0
+                                    ? '${avgSpeedKmh.toStringAsFixed(2)} km/h'
+                                    : '-- km/h',
+                              ),
+                              _metricPill(
+                                icon: Icons.local_fire_department,
+                                label: 'Calories',
+                                value: '${calories.toStringAsFixed(0)} kcal',
+                              ),
+                              _metricPill(
+                                icon: Icons.terrain,
+                                label: 'Elev',
+                                value: '+${elevation.toStringAsFixed(0)} m',
+                              ),
+                              _metricPill(
+                                icon: Icons.location_on_outlined,
+                                label: 'Points',
+                                value: '$points',
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          const Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              Text(
+                                'Tap for details',
+                                style: TextStyle(
+                                  color: Colors.black54,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              SizedBox(width: 4),
+                              Icon(
+                                Icons.chevron_right,
+                                size: 18,
+                                color: Colors.black45,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 );
@@ -456,3 +502,341 @@ class WorkoutHistoryPage extends StatelessWidget {
   }
 }
 
+class _WorkoutDetailPage extends StatelessWidget {
+  const _WorkoutDetailPage({
+    required this.firestore,
+    required this.sessionId,
+    required this.sessionData,
+  });
+
+  final FirebaseFirestore firestore;
+  final String sessionId;
+  final Map<String, dynamic> sessionData;
+
+  String _formatDuration(DateTime? startedAt, DateTime? endedAt, int seconds) {
+    Duration? elapsed;
+    if (seconds > 0) {
+      elapsed = Duration(seconds: seconds);
+    } else if (startedAt != null && endedAt != null) {
+      elapsed = endedAt.difference(startedAt);
+    }
+    if (elapsed == null) {
+      return '--:--:--';
+    }
+    final h = elapsed.inHours;
+    final m = elapsed.inMinutes.remainder(60);
+    final s = elapsed.inSeconds.remainder(60);
+    return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+
+  String _formatDateTime(DateTime? value) {
+    if (value == null) {
+      return '--';
+    }
+    final local = value.toLocal();
+    return '${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')} ${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+  }
+
+  Widget _metricTile({
+    required String label,
+    required String value,
+    required IconData icon,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.black.withValues(alpha: 0.07)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: kBrandOrange, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.black54,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                  ),
+                ),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final startedAt = DateTime.tryParse(
+      sessionData['startedAt'] as String? ?? '',
+    );
+    final endedAt = DateTime.tryParse(sessionData['endedAt'] as String? ?? '');
+    final distanceMeters =
+        (sessionData['distanceMeters'] as num?)?.toDouble() ?? 0;
+    final distanceKm = distanceMeters / 1000;
+    final elevation =
+        (sessionData['elevationGainMeters'] as num?)?.toDouble() ?? 0;
+    final calories = (sessionData['caloriesKcal'] as num?)?.toDouble() ?? 0;
+    final pointsCount = (sessionData['points'] as num?)?.toInt() ?? 0;
+    final durationSeconds =
+        (sessionData['activeDurationSeconds'] as num?)?.toInt() ??
+        ((startedAt != null && endedAt != null)
+            ? endedAt.difference(startedAt).inSeconds
+            : 0);
+    final pace = durationSeconds > 0 && distanceKm > 0
+        ? (durationSeconds / 60) / distanceKm
+        : 0.0;
+    final speed = durationSeconds > 0 && distanceKm > 0
+        ? distanceKm / (durationSeconds / 3600)
+        : 0.0;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Workout Details'),
+        backgroundColor: kBrandBlack,
+      ),
+      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: firestore
+            .collection('tracking_sessions')
+            .doc(sessionId)
+            .collection('points')
+            .orderBy('timestamp')
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Text(
+                  'Unable to load route points.\n\n${snapshot.error}',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            );
+          }
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final points = snapshot.data!.docs
+              .map((doc) {
+                final data = doc.data();
+                final lat = (data['latitude'] as num?)?.toDouble();
+                final lon = (data['longitude'] as num?)?.toDouble();
+                if (lat == null || lon == null) {
+                  return null;
+                }
+                return LatLng(lat, lon);
+              })
+              .whereType<LatLng>()
+              .toList(growable: false);
+
+          final startPoint = points.isNotEmpty ? points.first : null;
+          final endPoint = points.length >= 2 ? points.last : null;
+          final mapCenter = startPoint ?? const LatLng(3.1390, 101.6869);
+
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
+            children: [
+              Card(
+                child: SizedBox(
+                  height: 280,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: points.isEmpty
+                        ? const Center(
+                            child: Text(
+                              'No route points available for this workout.',
+                            ),
+                          )
+                        : FlutterMap(
+                            options: MapOptions(
+                              initialCenter: mapCenter,
+                              initialZoom: 15,
+                              initialCameraFit: points.length >= 2
+                                  ? CameraFit.bounds(
+                                      bounds: LatLngBounds.fromPoints(points),
+                                      padding: const EdgeInsets.all(28),
+                                    )
+                                  : null,
+                            ),
+                            children: [
+                              TileLayer(
+                                urlTemplate: kMapThemeOptions[0].urlTemplate,
+                                subdomains: kMapThemeOptions[0].subdomains,
+                                userAgentPackageName: 'com.company.fakestrava',
+                              ),
+                              if (points.length >= 2)
+                                PolylineLayer(
+                                  polylines: [
+                                    Polyline(
+                                      points: points,
+                                      strokeWidth: 6,
+                                      color: kBrandOrange,
+                                    ),
+                                  ],
+                                ),
+                              MarkerLayer(
+                                markers: [
+                                  if (startPoint != null)
+                                    Marker(
+                                      point: startPoint,
+                                      width: 30,
+                                      height: 30,
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF2E7D32),
+                                          borderRadius: BorderRadius.circular(
+                                            20,
+                                          ),
+                                          border: Border.all(
+                                            color: Colors.white,
+                                            width: 2.5,
+                                          ),
+                                        ),
+                                        child: const Icon(
+                                          Icons.play_arrow,
+                                          color: Colors.white,
+                                          size: 16,
+                                        ),
+                                      ),
+                                    ),
+                                  if (endPoint != null)
+                                    Marker(
+                                      point: endPoint,
+                                      width: 30,
+                                      height: 30,
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFC62828),
+                                          borderRadius: BorderRadius.circular(
+                                            20,
+                                          ),
+                                          border: Border.all(
+                                            color: Colors.white,
+                                            width: 2.5,
+                                          ),
+                                        ),
+                                        child: const Icon(
+                                          Icons.flag,
+                                          color: Colors.white,
+                                          size: 14,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              RichAttributionWidget(
+                                attributions: [
+                                  TextSourceAttribution(
+                                    kMapThemeOptions[0].attribution,
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Session Overview',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      _metricTile(
+                        label: 'Distance',
+                        value: '${distanceKm.toStringAsFixed(2)} km',
+                        icon: Icons.route,
+                      ),
+                      const SizedBox(height: 8),
+                      _metricTile(
+                        label: 'Duration',
+                        value: _formatDuration(
+                          startedAt,
+                          endedAt,
+                          durationSeconds,
+                        ),
+                        icon: Icons.timer_outlined,
+                      ),
+                      const SizedBox(height: 8),
+                      _metricTile(
+                        label: 'Average Pace',
+                        value: pace > 0
+                            ? '${pace.toStringAsFixed(2)} min/km'
+                            : '-- min/km',
+                        icon: Icons.speed,
+                      ),
+                      const SizedBox(height: 8),
+                      _metricTile(
+                        label: 'Average Speed',
+                        value: speed > 0
+                            ? '${speed.toStringAsFixed(2)} km/h'
+                            : '-- km/h',
+                        icon: Icons.flash_on,
+                      ),
+                      const SizedBox(height: 8),
+                      _metricTile(
+                        label: 'Calories',
+                        value: '${calories.toStringAsFixed(0)} kcal',
+                        icon: Icons.local_fire_department,
+                      ),
+                      const SizedBox(height: 8),
+                      _metricTile(
+                        label: 'Elevation Gain',
+                        value: '+${elevation.toStringAsFixed(0)} m',
+                        icon: Icons.terrain,
+                      ),
+                      const SizedBox(height: 8),
+                      _metricTile(
+                        label: 'Tracking Points',
+                        value: '$pointsCount',
+                        icon: Icons.location_on_outlined,
+                      ),
+                      const SizedBox(height: 8),
+                      _metricTile(
+                        label: 'Started',
+                        value: _formatDateTime(startedAt),
+                        icon: Icons.schedule,
+                      ),
+                      const SizedBox(height: 8),
+                      _metricTile(
+                        label: 'Ended',
+                        value: _formatDateTime(endedAt),
+                        icon: Icons.event_available,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}

@@ -47,10 +47,7 @@ class _TrackingHomePageState extends State<TrackingHomePage>
   bool _isResuming = false;
   bool _isFinishing = false;
   late final AnimationController _panelController;
-  bool _isMapFullscreen = false;
   double _finishHoldProgress = 0;
-  double _panelDragAccumulator = 0;
-  double _statsScale = 1.0;
   bool _voicePaceEnabled = true;
   bool _hasLiveLocationFix = false;
   bool _hasCenteredOnLiveLocation = false;
@@ -578,10 +575,17 @@ class _TrackingHomePageState extends State<TrackingHomePage>
     return Container(
       decoration: BoxDecoration(
         color: active
-            ? kBrandOrange.withValues(alpha: 0.85)
-            : Colors.black.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+            ? kBrandOrange.withValues(alpha: 0.88)
+            : Colors.black.withValues(alpha: 0.42),
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.16),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: IconButton(
         onPressed: onTap,
@@ -598,34 +602,50 @@ class _TrackingHomePageState extends State<TrackingHomePage>
     required String value,
     required IconData icon,
   }) {
-    final scale = _statsScale;
-    return Container(
-      padding: EdgeInsets.all(14 * scale),
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 260),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8F9FC),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFFDFDFD), Color(0xFFF3F5F9)],
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Row(
         children: [
           Container(
-            width: 34 * scale,
-            height: 34 * scale,
+            width: 34,
+            height: 34,
             decoration: BoxDecoration(
-              color: kBrandOrange.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
+              gradient: LinearGradient(
+                colors: [
+                  kBrandOrange.withValues(alpha: 0.16),
+                  kBrandOrange.withValues(alpha: 0.08),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(11),
             ),
-            child: Icon(icon, color: kBrandOrange, size: 18 * scale),
+            child: Icon(icon, color: kBrandOrange, size: 18),
           ),
-          SizedBox(width: 10 * scale),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   label,
-                  style: TextStyle(
-                    fontSize: 11 * scale,
+                  style: const TextStyle(
+                    fontSize: 11,
                     color: Colors.black54,
                     fontWeight: FontWeight.w600,
                   ),
@@ -635,10 +655,11 @@ class _TrackingHomePageState extends State<TrackingHomePage>
                   child: Text(
                     value,
                     key: ValueKey<String>('primary_${label}_$value'),
-                    style: TextStyle(
-                      fontSize: 20 * scale,
+                    style: const TextStyle(
+                      fontSize: 22,
                       fontWeight: FontWeight.w800,
                       color: kBrandBlack,
+                      height: 1.05,
                     ),
                   ),
                 ),
@@ -655,26 +676,33 @@ class _TrackingHomePageState extends State<TrackingHomePage>
     required String value,
     required IconData icon,
   }) {
-    final scale = _statsScale;
-    return Container(
-      padding: EdgeInsets.all(12 * scale),
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 260),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xFFFBFBFC),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
+        border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Row(
         children: [
-          Icon(icon, size: 16 * scale, color: kBrandOrange),
-          SizedBox(width: 8 * scale),
+          Icon(icon, size: 16, color: kBrandOrange.withValues(alpha: 0.95)),
+          const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   label,
-                  style: TextStyle(
-                    fontSize: 11 * scale,
+                  style: const TextStyle(
+                    fontSize: 11,
                     color: Colors.black54,
                     fontWeight: FontWeight.w600,
                   ),
@@ -684,14 +712,43 @@ class _TrackingHomePageState extends State<TrackingHomePage>
                   child: Text(
                     value,
                     key: ValueKey<String>('secondary_${label}_$value'),
-                    style: TextStyle(
-                      fontSize: 14 * scale,
+                    style: const TextStyle(
+                      fontSize: 15,
                       fontWeight: FontWeight.w700,
                       color: kBrandBlack,
                     ),
                   ),
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusInfoChip({
+    required IconData icon,
+    required String label,
+    required Color tone,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: tone.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: tone.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: tone),
+          const SizedBox(width: 7),
+          Text(
+            label,
+            style: TextStyle(
+              color: Colors.black.withValues(alpha: 0.76),
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],
@@ -749,7 +806,6 @@ class _TrackingHomePageState extends State<TrackingHomePage>
   bool get _isPanelCollapsed => _panelController.value < 0.5;
 
   void _togglePanelCollapse() {
-    if (_isMapFullscreen) return;
     if (_panelController.value > 0.5) {
       _panelController.reverse();
     } else {
@@ -758,12 +814,10 @@ class _TrackingHomePageState extends State<TrackingHomePage>
   }
 
   void _onPanelDragStart(DragStartDetails details) {
-    if (_isMapFullscreen) return;
     _panelController.stop();
   }
 
   void _onPanelDragUpdate(DragUpdateDetails details) {
-    if (_isMapFullscreen) return;
     final delta = details.primaryDelta;
     if (delta == null) return;
     // Delta > 0 means dragging down (shrinking)
@@ -771,7 +825,6 @@ class _TrackingHomePageState extends State<TrackingHomePage>
   }
 
   void _onPanelDragEnd(DragEndDetails details) {
-    if (_isMapFullscreen) return;
     final velocity = details.primaryVelocity ?? 0;
     if (velocity > 300) {
       _panelController.reverse(); // Fling down
@@ -782,24 +835,6 @@ class _TrackingHomePageState extends State<TrackingHomePage>
     } else {
       _panelController.reverse();
     }
-  }
-
-  void _toggleMapFullscreen() {
-    setState(() {
-      _isMapFullscreen = !_isMapFullscreen;
-    });
-  }
-
-  void _cycleStatsScale() {
-    setState(() {
-      if (_statsScale < 1.0) {
-        _statsScale = 1.0;
-      } else if (_statsScale < 1.1) {
-        _statsScale = 1.2;
-      } else {
-        _statsScale = 0.9;
-      }
-    });
   }
 
   Future<void> _showHRDeviceSelector() async {
@@ -917,16 +952,6 @@ class _TrackingHomePageState extends State<TrackingHomePage>
     );
   }
 
-  String get _statsScaleLabel {
-    if (_statsScale < 1.0) {
-      return 'S';
-    }
-    if (_statsScale > 1.1) {
-      return 'L';
-    }
-    return 'M';
-  }
-
   @override
   Widget build(BuildContext context) {
     final pace = _paceMinPerKm();
@@ -934,9 +959,8 @@ class _TrackingHomePageState extends State<TrackingHomePage>
     final activeMapTheme = kMapThemeOptions[_mapThemeIndex];
     final avgSpeedKmh = pace > 0 ? 60 / pace : 0.0;
     final bottomInset = MediaQuery.paddingOf(context).bottom;
-    final mapControlsBottom = _isMapFullscreen
-        ? 20.0 + bottomInset
-        : (340.0 + (30.0 * _panelController.value)) + bottomInset;
+    final mapControlsBottom =
+        (340.0 + (30.0 * _panelController.value)) + bottomInset;
     return Scaffold(
       body: Stack(
         children: [
@@ -1057,60 +1081,56 @@ class _TrackingHomePageState extends State<TrackingHomePage>
                     ),
                   ),
                   const SizedBox(width: 12),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      reverse: true,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          _buildIconGlassButton(
-                            icon: _voicePaceEnabled
-                                ? Icons.volume_up
-                                : Icons.volume_off,
-                            onTap: () {
-                              setState(() => _voicePaceEnabled = !_voicePaceEnabled);
-                            },
-                            active: _voicePaceEnabled,
-                            tooltip: _voicePaceEnabled
-                                ? 'Disable voice pace'
-                                : 'Enable voice pace',
-                          ),
-                          const SizedBox(width: 4),
-                          _buildIconGlassButton(
-                            icon: Icons.layers_outlined,
-                            onTap: _cycleMapTheme,
-                            tooltip: 'Map style: ${activeMapTheme.label}',
-                          ),
-                          const SizedBox(width: 4),
-                          _buildIconGlassButton(
-                            icon: Icons.text_fields_rounded,
-                            onTap: _cycleStatsScale,
-                            tooltip: 'Stats size: $_statsScaleLabel',
-                            active: _statsScale > 1.0,
-                          ),
-                          const SizedBox(width: 4),
-                          _buildIconGlassButton(
-                            icon: Icons.favorite,
-                            onTap: _showHRDeviceSelector,
-                            tooltip: _hrService.isConnected
-                                ? 'HR Monitor Connected'
-                                : 'Connect HR Monitor',
-                            active: _hrService.isConnected,
-                          ),
-                          const SizedBox(width: 4),
-                          _buildIconGlassButton(
-                            icon: _isMapFullscreen
-                                ? Icons.fullscreen_exit
-                                : Icons.fullscreen,
-                            onTap: _toggleMapFullscreen,
-                            tooltip: _isMapFullscreen
-                                ? 'Exit full screen map'
-                                : 'Full screen map',
-                            active: _isMapFullscreen,
-                          ),
-                        ],
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.40),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.16),
                       ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.2),
+                          blurRadius: 14,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _buildIconGlassButton(
+                          icon: _voicePaceEnabled
+                              ? Icons.volume_up
+                              : Icons.volume_off,
+                          onTap: () {
+                            setState(
+                              () => _voicePaceEnabled = !_voicePaceEnabled,
+                            );
+                          },
+                          active: _voicePaceEnabled,
+                          tooltip: _voicePaceEnabled
+                              ? 'Disable voice pace'
+                              : 'Enable voice pace',
+                        ),
+                        const SizedBox(width: 4),
+                        _buildIconGlassButton(
+                          icon: Icons.layers_outlined,
+                          onTap: _cycleMapTheme,
+                          tooltip: 'Map style: ${activeMapTheme.label}',
+                        ),
+                        const SizedBox(width: 4),
+                        _buildIconGlassButton(
+                          icon: Icons.favorite,
+                          onTap: _showHRDeviceSelector,
+                          tooltip: _hrService.isConnected
+                              ? 'HR Monitor Connected'
+                              : 'Connect HR Monitor',
+                          active: _hrService.isConnected,
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -1124,407 +1144,446 @@ class _TrackingHomePageState extends State<TrackingHomePage>
               ignoring: _panelController.value > 0.5,
               child: FadeTransition(
                 opacity: ReverseAnimation(_panelController),
-                child: Column(
-              children: [
-                _buildIconGlassButton(
-                  icon: Icons.my_location,
-                  onTap: _recenterToUser,
-                  active: _followUserLocation,
-                  tooltip: 'Center on location',
-                ),
-                const SizedBox(height: 8),
-                _buildIconGlassButton(
-                  icon: Icons.add,
-                  onTap: () => _zoomMap(1),
-                  tooltip: 'Zoom in',
-                ),
-                const SizedBox(height: 8),
-                _buildIconGlassButton(
-                  icon: Icons.remove,
-                  onTap: () => _zoomMap(-1),
-                  tooltip: 'Zoom out',
-                ),
-              ],
-            ),
-              ),
-            ),
-          ),
-          if (!_isMapFullscreen)
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: GestureDetector(
-                behavior: HitTestBehavior.translucent,
-                onVerticalDragStart: _onPanelDragStart,
-                onVerticalDragUpdate: _onPanelDragUpdate,
-                onVerticalDragEnd: _onPanelDragEnd,
                 child: Container(
-                  width: double.infinity,
-                  padding: EdgeInsets.fromLTRB(14, 12, 14, 12 + bottomInset),
+                  padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.96),
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(28),
+                    color: Colors.black.withValues(alpha: 0.40),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.16),
                     ),
-                    boxShadow: const [
+                    boxShadow: [
                       BoxShadow(
-                        color: Color(0x2F000000),
-                        blurRadius: 24,
-                        offset: Offset(0, -8),
+                        color: Colors.black.withValues(alpha: 0.2),
+                        blurRadius: 14,
+                        offset: const Offset(0, 6),
                       ),
                     ],
                   ),
                   child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                      GestureDetector(
-                        onTap: _togglePanelCollapse,
-                        child: Center(
-                          child: Column(
-                            children: [
-                              Container(
-                                width: 42,
-                                height: 4,
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(999),
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Icon(
-                                _isPanelCollapsed
-                                    ? Icons.keyboard_arrow_up_rounded
-                                    : Icons.keyboard_arrow_down_rounded,
-                                size: 18,
-                                color: Colors.black45,
-                              ),
-                            ],
-                          ),
-                        ),
+                    children: [
+                      _buildIconGlassButton(
+                        icon: Icons.my_location,
+                        onTap: _recenterToUser,
+                        active: _followUserLocation,
+                        tooltip: 'Center on location',
                       ),
                       const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              _elapsedLabel(),
-                              style: const TextStyle(
-                                fontSize: 30,
-                                fontWeight: FontWeight.w900,
-                                color: kBrandBlack,
-                                fontFeatures: [FontFeature.tabularFigures()],
-                              ),
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: _trackingStatusColor.withValues(
-                                alpha: 0.14,
-                              ),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Text(
-                              _trackingStatusLabel,
-                              style: TextStyle(
-                                color: _trackingStatusColor,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
-                        ],
+                      _buildIconGlassButton(
+                        icon: Icons.add,
+                        onTap: () => _zoomMap(1),
+                        tooltip: 'Zoom in',
                       ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildPrimaryMetric(
-                              label: 'Distance',
-                              value:
-                                  '${displayedDistanceKm.toStringAsFixed(3)} km',
-                              icon: Icons.route,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _buildPrimaryMetric(
-                              label: 'Pace',
-                              value: pace > 0
-                                  ? '${pace.toStringAsFixed(2)} min/km'
-                                  : '-- min/km',
-                              icon: Icons.speed,
-                            ),
-                          ),
-                        ],
+                      const SizedBox(height: 8),
+                      _buildIconGlassButton(
+                        icon: Icons.remove,
+                        onTap: () => _zoomMap(-1),
+                        tooltip: 'Zoom out',
                       ),
-                      SizeTransition(
-                        sizeFactor: ReverseAnimation(_panelController),
-                        axisAlignment: -1.0,
-                        child: const Padding(
-                          padding: EdgeInsets.only(top: 8.0),
-                          child: Text(
-                            'Summary mode. Swipe up for full details.',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.black54,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ),
-                      SizeTransition(
-                        sizeFactor: _panelController,
-                        axisAlignment: -1.0,
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onVerticalDragStart: _onPanelDragStart,
+              onVerticalDragUpdate: _onPanelDragUpdate,
+              onVerticalDragEnd: _onPanelDragEnd,
+              child: Container(
+                width: double.infinity,
+                padding: EdgeInsets.fromLTRB(14, 12, 14, 12 + bottomInset),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Color(0xFFFDFDFE), Color(0xFFF7F8FB)],
+                  ),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(30),
+                  ),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x28000000),
+                      blurRadius: 22,
+                      offset: Offset(0, -6),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    GestureDetector(
+                      onTap: _togglePanelCollapse,
+                      child: Center(
                         child: Column(
-                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            const SizedBox(height: 10),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildSecondaryMetric(
-                                label: 'Calories',
-                                value:
-                                    '${_caloriesKcal.toStringAsFixed(0)} kcal',
-                                icon: Icons.local_fire_department,
+                            Container(
+                              width: 42,
+                              height: 4,
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(999),
                               ),
                             ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: _buildSecondaryMetric(
-                                label: 'Elevation',
-                                value:
-                                    '${_elevationGainMeters.toStringAsFixed(0)} m',
-                                icon: Icons.terrain,
-                              ),
-                            ),
-                        ],
-                      ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildSecondaryMetric(
-                                label: 'Points',
-                                value: '$_points',
-                                icon: Icons.location_on_outlined,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: _buildSecondaryMetric(
-                                label: 'Avg Speed',
-                                value: avgSpeedKmh > 0
-                                    ? '${avgSpeedKmh.toStringAsFixed(2)} km/h'
-                                    : '-- km/h',
-                                icon: Icons.flash_on,
-                              ),
-                            ),
-                        ],
-                      ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildSecondaryMetric(
-                                label: 'Current HR',
-                                value: _currentHeartRate > 0
-                                    ? '$_currentHeartRate bpm'
-                                    : '-- bpm',
-                                icon: Icons.favorite,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: _buildSecondaryMetric(
-                                label: 'Avg HR',
-                                value: _heartRateReadings.isNotEmpty
-                                    ? '${((_heartRateReadings.fold<int>(0, (a, b) => a + b) / _heartRateReadings.length)).round()} bpm'
-                                    : '-- bpm',
-                                icon: Icons.favorite_outline,
-                              ),
-                            ),
-                        ],
-                      ),
-                        const SizedBox(height: 10),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 6,
-                          children: [
-                            Chip(
-                              avatar: Icon(
-                                _hasLiveLocationFix
-                                    ? Icons.gps_fixed
-                                    : Icons.gps_not_fixed,
-                                color: _hasLiveLocationFix
-                                    ? const Color(0xFF2E7D32)
-                                    : const Color(0xFFE65100),
-                                size: 16,
-                              ),
-                              label: Text(
-                                _hasLiveLocationFix
-                                    ? 'GPS locked'
-                                    : 'Searching GPS',
-                              ),
-                            ),
-                            Chip(
-                              avatar: const Icon(Icons.map_outlined, size: 16),
-                              label: Text(activeMapTheme.label),
+                            const SizedBox(height: 4),
+                            Icon(
+                              _isPanelCollapsed
+                                  ? Icons.keyboard_arrow_up_rounded
+                                  : Icons.keyboard_arrow_down_rounded,
+                              size: 18,
+                              color: Colors.black45,
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          _canHoldToFinish
-                              ? 'Press and hold Finish for 3 seconds to save workout'
-                              : 'Start a workout to enable pause and finish',
-                          style: const TextStyle(
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _elapsedLabel(),
+                            style: const TextStyle(
+                              fontSize: 32,
+                              fontWeight: FontWeight.w900,
+                              color: kBrandBlack,
+                              fontFeatures: [FontFeature.tabularFigures()],
+                            ),
+                          ),
+                        ),
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 220),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 7,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _trackingStatusColor.withValues(alpha: 0.14),
+                            border: Border.all(
+                              color: _trackingStatusColor.withValues(
+                                alpha: 0.3,
+                              ),
+                            ),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            _trackingStatusLabel,
+                            style: TextStyle(
+                              color: _trackingStatusColor,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildPrimaryMetric(
+                            label: 'Distance',
+                            value:
+                                '${displayedDistanceKm.toStringAsFixed(3)} km',
+                            icon: Icons.route,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _buildPrimaryMetric(
+                            label: 'Pace',
+                            value: pace > 0
+                                ? '${pace.toStringAsFixed(2)} min/km'
+                                : '-- min/km',
+                            icon: Icons.speed,
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizeTransition(
+                      sizeFactor: ReverseAnimation(_panelController),
+                      axisAlignment: -1.0,
+                      child: const Padding(
+                        padding: EdgeInsets.only(top: 8.0),
+                        child: Text(
+                          'Summary mode. Swipe up for full details.',
+                          style: TextStyle(
                             fontSize: 12,
                             color: Colors.black54,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                      ],
+                      ),
                     ),
-                  ),
-                      const SizedBox(height: 8),
-                      Row(
+                    SizeTransition(
+                      sizeFactor: _panelController,
+                      axisAlignment: -1.0,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Expanded(
-                            child: FilledButton.icon(
-                              onPressed: kIsWeb || _isTracking || _isStarting
-                                  ? null
-                                  : _handleStart,
-                              icon: const Icon(Icons.play_arrow_rounded),
-                              label: Text(
-                                _isStarting ? 'Starting...' : 'Start',
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildSecondaryMetric(
+                                  label: 'Calories',
+                                  value:
+                                      '${_caloriesKcal.toStringAsFixed(0)} kcal',
+                                  icon: Icons.local_fire_department,
+                                ),
                               ),
-                              style: FilledButton.styleFrom(
-                                minimumSize: const Size.fromHeight(48),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: _buildSecondaryMetric(
+                                  label: 'Elevation',
+                                  value:
+                                      '${_elevationGainMeters.toStringAsFixed(0)} m',
+                                  icon: Icons.terrain,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildSecondaryMetric(
+                                  label: 'Points',
+                                  value: '$_points',
+                                  icon: Icons.location_on_outlined,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: _buildSecondaryMetric(
+                                  label: 'Avg Speed',
+                                  value: avgSpeedKmh > 0
+                                      ? '${avgSpeedKmh.toStringAsFixed(2)} km/h'
+                                      : '-- km/h',
+                                  icon: Icons.flash_on,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildSecondaryMetric(
+                                  label: 'Current HR',
+                                  value: _currentHeartRate > 0
+                                      ? '$_currentHeartRate bpm'
+                                      : '-- bpm',
+                                  icon: Icons.favorite,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: _buildSecondaryMetric(
+                                  label: 'Avg HR',
+                                  value: _heartRateReadings.isNotEmpty
+                                      ? '${((_heartRateReadings.fold<int>(0, (a, b) => a + b) / _heartRateReadings.length)).round()} bpm'
+                                      : '-- bpm',
+                                  icon: Icons.favorite_outline,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 6,
+                            children: [
+                              _buildStatusInfoChip(
+                                icon: _hasLiveLocationFix
+                                    ? Icons.gps_fixed
+                                    : Icons.gps_not_fixed,
+                                label: _hasLiveLocationFix
+                                    ? 'GPS locked'
+                                    : 'Searching GPS',
+                                tone: _hasLiveLocationFix
+                                    ? const Color(0xFF2E7D32)
+                                    : const Color(0xFFE65100),
+                              ),
+                              _buildStatusInfoChip(
+                                icon: Icons.map_outlined,
+                                label: activeMapTheme.label,
+                                tone: const Color(0xFF5C6BC0),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            _canHoldToFinish
+                                ? 'Press and hold Finish for 3 seconds to save workout'
+                                : 'Start a workout to enable pause and finish',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.black54,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: FilledButton.icon(
+                            onPressed: kIsWeb || _isTracking || _isStarting
+                                ? null
+                                : _handleStart,
+                            icon: const Icon(Icons.play_arrow_rounded),
+                            label: Text(_isStarting ? 'Starting...' : 'Start'),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: kBrandOrange,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              minimumSize: const Size.fromHeight(48),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(15),
                               ),
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed:
-                                  !kIsWeb &&
-                                      _isTracking &&
-                                      !_isPausing &&
-                                      !_isResuming
-                                  ? _handlePauseResume
-                                  : null,
-                              icon: Icon(
-                                _isManuallyPaused
-                                    ? Icons.play_arrow_rounded
-                                    : Icons.pause_rounded,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed:
+                                !kIsWeb &&
+                                    _isTracking &&
+                                    !_isPausing &&
+                                    !_isResuming
+                                ? _handlePauseResume
+                                : null,
+                            icon: Icon(
+                              _isManuallyPaused
+                                  ? Icons.play_arrow_rounded
+                                  : Icons.pause_rounded,
+                            ),
+                            label: Text(
+                              _isManuallyPaused
+                                  ? (_isResuming ? 'Resuming...' : 'Resume')
+                                  : (_isPausing ? 'Pausing...' : 'Pause'),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              backgroundColor: Colors.white,
+                              minimumSize: const Size.fromHeight(48),
+                              foregroundColor: kBrandBlack,
+                              side: BorderSide(
+                                color: Colors.black.withValues(alpha: 0.14),
                               ),
-                              label: Text(
-                                _isManuallyPaused
-                                    ? (_isResuming ? 'Resuming...' : 'Resume')
-                                    : (_isPausing ? 'Pausing...' : 'Pause'),
-                              ),
-                              style: OutlinedButton.styleFrom(
-                                minimumSize: const Size.fromHeight(48),
-                                foregroundColor: kBrandBlack,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(15),
                               ),
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: GestureDetector(
-                              behavior: HitTestBehavior.opaque,
-                              onTapDown: _canHoldToFinish
-                                  ? (_) => _startFinishHold()
-                                  : null,
-                              onTapUp: (_) => _cancelFinishHold(),
-                              onTapCancel: _cancelFinishHold,
-                              child: Stack(
-                                alignment: Alignment.center,
-                                children: [
-                                  Container(
-                                    height: 48,
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF20242E),
-                                      borderRadius: BorderRadius.circular(14),
-                                    ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTapDown: _canHoldToFinish
+                                ? (_) => _startFinishHold()
+                                : null,
+                            onTapUp: (_) => _cancelFinishHold(),
+                            onTapCancel: _cancelFinishHold,
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                Container(
+                                  height: 48,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF20242E),
+                                    borderRadius: BorderRadius.circular(15),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(
+                                          alpha: 0.22,
+                                        ),
+                                        blurRadius: 12,
+                                        offset: const Offset(0, 5),
+                                      ),
+                                    ],
                                   ),
-                                  Positioned.fill(
-                                    child: Align(
-                                      alignment: Alignment.centerLeft,
-                                      child: FractionallySizedBox(
-                                        widthFactor: _finishHoldProgress,
-                                        child: Container(
-                                          decoration: BoxDecoration(
-                                            color: kBrandOrange.withValues(
-                                              alpha: 0.9,
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              14,
-                                            ),
+                                ),
+                                Positioned.fill(
+                                  child: Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: FractionallySizedBox(
+                                      widthFactor: _finishHoldProgress,
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          color: kBrandOrange.withValues(
+                                            alpha: 0.9,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            15,
                                           ),
                                         ),
                                       ),
                                     ),
                                   ),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        _isFinishing
-                                            ? Icons.check_circle
-                                            : Icons.stop_rounded,
+                                ),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      _isFinishing
+                                          ? Icons.check_circle
+                                          : Icons.stop_rounded,
+                                      color: Colors.white,
+                                      size: 18,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      _isFinishing
+                                          ? 'Saving...'
+                                          : _finishHoldProgress > 0
+                                          ? 'Hold ${(3 - (_finishHoldProgress * 3)).ceil().clamp(1, 3)}s'
+                                          : 'Finish',
+                                      style: const TextStyle(
                                         color: Colors.white,
-                                        size: 18,
+                                        fontWeight: FontWeight.w700,
                                       ),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        _isFinishing
-                                            ? 'Saving...'
-                                            : _finishHoldProgress > 0
-                                            ? 'Hold ${(3 - (_finishHoldProgress * 3)).ceil().clamp(1, 3)}s'
-                                            : 'Finish',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
-                          ),
-                        ],
-                      ),
-                      if (kIsWeb) ...[
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Tracking is disabled on web. Use Android/iOS for live GPS.',
-                          style: TextStyle(fontSize: 12, color: Colors.black54),
-                        ),
-                      ] else if (_locationStatus != null) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          _locationStatus!,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.black54,
                           ),
                         ),
                       ],
+                    ),
+                    if (kIsWeb) ...[
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Tracking is disabled on web. Use Android/iOS for live GPS.',
+                        style: TextStyle(fontSize: 12, color: Colors.black54),
+                      ),
+                    ] else if (_locationStatus != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        _locationStatus!,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.black54,
+                        ),
+                      ),
                     ],
-                  ),
+                  ],
                 ),
               ),
             ),
+          ),
         ],
       ),
     );
   }
 }
-

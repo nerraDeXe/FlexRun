@@ -1,8 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:fake_strava/core/theme.dart';
+import 'package:fake_strava/home/home_page.dart';
+import 'package:fake_strava/home/social_repository.dart';
 import 'package:fake_strava/progress/progress_page.dart';
 import 'package:fake_strava/profile/profile_page.dart';
 import 'package:fake_strava/tracking/pages/tracking_home_page.dart';
@@ -23,6 +26,23 @@ class TrackingDashboardShell extends StatefulWidget {
 
 class _TrackingDashboardShellState extends State<TrackingDashboardShell> {
   int _selectedTabIndex = 0;
+  final SocialRepository _socialRepository = SocialRepository();
+
+  @override
+  void initState() {
+    super.initState();
+    _bootstrapCurrentUserProfile();
+  }
+
+  Future<void> _bootstrapCurrentUserProfile() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return;
+    }
+    try {
+      await _socialRepository.ensureUserProfile(user: user);
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,6 +50,7 @@ class _TrackingDashboardShellState extends State<TrackingDashboardShell> {
       body: IndexedStack(
         index: _selectedTabIndex,
         children: [
+          HomePage(displayName: widget.displayName),
           TrackingHomePage(displayName: widget.displayName),
           ProgressPage(displayName: widget.displayName),
           ProfilePage(
@@ -68,6 +89,11 @@ class _TrackingDashboardShellState extends State<TrackingDashboardShell> {
           },
           destinations: const [
             NavigationDestination(
+              icon: Icon(Icons.home_outlined, color: Colors.white70),
+              selectedIcon: Icon(Icons.home, color: kBrandOrange),
+              label: 'Home',
+            ),
+            NavigationDestination(
               icon: Icon(Icons.directions_run_outlined, color: Colors.white70),
               selectedIcon: Icon(Icons.directions_run, color: kBrandOrange),
               label: 'Track',
@@ -88,4 +114,3 @@ class _TrackingDashboardShellState extends State<TrackingDashboardShell> {
     );
   }
 }
-
