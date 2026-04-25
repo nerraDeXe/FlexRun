@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -6,7 +8,9 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import 'package:fake_strava/core/theme.dart';
+import 'package:fake_strava/groups/groups_page.dart';
 import 'package:fake_strava/home/social_repository.dart';
+import 'package:fake_strava/home/searched_user_profile_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key, required this.displayName});
@@ -20,17 +24,24 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final SocialRepository _socialRepository = SocialRepository();
   final TextEditingController _usernameController = TextEditingController();
-  bool _isFollowing = false;
+  
+  String _searchQuery = '';
+  List<Map<String, dynamic>> _searchResults = [];
+  bool _isSearching = false;
+  Timer? _debounce;
 
   @override
   void initState() {
     super.initState();
     _ensureProfile();
+    _usernameController.addListener(_onSearchChanged);
   }
 
   @override
   void dispose() {
+    _usernameController.removeListener(_onSearchChanged);
     _usernameController.dispose();
+    _debounce?.cancel();
     super.dispose();
   }
 
@@ -44,51 +55,52 @@ class _HomePageState extends State<HomePage> {
     } catch (_) {}
   }
 
-  Future<void> _followUser() async {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null) {
-      return;
-    }
-    final input = _usernameController.text.trim();
-    if (input.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter a username to follow.')),
-      );
+  void _onSearchChanged() {
+    final query = _usernameController.text.trim();
+    if (_searchQuery == query) return;
+    
+    setState(() {
+      _searchQuery = query;
+    });
+
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      _performSearch(query);
+    });
+  }
+
+  Future<void> _performSearch(String query) async {
+    if (query.isEmpty) {
+      setState(() {
+        _searchResults = [];
+        _isSearching = false;
+      });
       return;
     }
 
-    setState(() => _isFollowing = true);
+    setState(() {
+      _isSearching = true;
+    });
+
     try {
-      final followed = await _socialRepository.followUserByUsername(
-        currentUserId: currentUser.uid,
-        username: input,
-      );
-      _usernameController.clear();
-      if (!mounted) {
-        return;
+      final results = await _socialRepository.searchUsersByPrefix(prefix: query);
+      if (mounted && _searchQuery == query) {
+        setState(() {
+          _searchResults = results;
+          _isSearching = false;
+        });
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('You are now following @$followed.')),
-      );
-    } on StateError catch (error) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.message ?? 'Follow failed.')),
-      );
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Follow failed: $error')));
-    } finally {
+    } catch (e) {
       if (mounted) {
-        setState(() => _isFollowing = false);
+        setState(() {
+          _isSearching = false;
+        });
       }
     }
+  }
+
+  void _executeSearch() {
+    FocusScope.of(context).unfocus();
   }
 
   String _durationLabel(int seconds) {
@@ -146,77 +158,147 @@ class _HomePageState extends State<HomePage> {
               followingCount: followingIds.length,
             ),
             Expanded(
-              child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: _socialRepository.firestore
-                    .collection('tracking_sessions')
-                    .orderBy('startedAt', descending: true)
-                    .limit(150)
-                    .snapshots(),
-                builder: (context, feedSnapshot) {
-                  if (feedSnapshot.hasError) {
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Text(
-                          'Unable to load activity feed.\n\n${feedSnapshot.error}',
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    );
-                  }
-                  if (!feedSnapshot.hasData) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  final allDocs = feedSnapshot.data!.docs;
-                  final feed = allDocs
-                      .where((doc) {
-                        final data = doc.data();
-                        final uid = data['userId'] as String?;
-                        final status = (data['status'] as String?) ?? '';
-                        if (uid == null) {
-                          return false;
+              child: _searchQuery.isNotEmpty
+                  ? _buildSearchResults()
+                  : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                      stream: _socialRepository.firestore
+                          .collection('tracking_sessions')
+                          .orderBy('startedAt', descending: true)
+                          .limit(150)
+                          .snapshots(),
+                      builder: (context, feedSnapshot) {
+                        if (feedSnapshot.hasError) {
+                          return Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(20),
+                              child: Text(
+                                'Unable to load activity feed.\n\n${feedSnapshot.error}',
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          );
                         }
-                        return allowedUsers.contains(uid) &&
-                            status == 'stopped';
-                      })
-                      .toList(growable: false);
+                        if (!feedSnapshot.hasData) {
+                          return const Center(child: CircularProgressIndicator());
+                        }
 
-                  if (feed.isEmpty) {
-                    return const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(20),
-                        child: Text(
-                          'No activity yet.\nStart a workout or follow more users to fill your Home feed.',
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    );
-                  }
+                        final allDocs = feedSnapshot.data!.docs;
+                        final feed = allDocs
+                            .where((doc) {
+                              final data = doc.data();
+                              final uid = data['userId'] as String?;
+                              final status = (data['status'] as String?) ?? '';
+                              if (uid == null) {
+                                return false;
+                              }
+                              return allowedUsers.contains(uid) &&
+                                  status == 'stopped';
+                            })
+                            .toList(growable: false);
 
-                  return ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(14, 8, 14, 16),
-                    itemCount: feed.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 12),
-                    itemBuilder: (context, index) {
-                      final doc = feed[index];
-                      return _ActivityFeedCard(
-                        sessionId: doc.id,
-                        data: doc.data(),
-                        currentUserId: currentUser.uid,
-                        currentDisplayName: widget.displayName,
-                        firestore: _socialRepository.firestore,
-                        socialRepository: _socialRepository,
-                        durationLabel: _durationLabel,
-                      );
-                    },
-                  );
-                },
-              ),
+                        if (feed.isEmpty) {
+                          return const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(20),
+                              child: Text(
+                                'No activity yet.\nStart a workout or follow more users to fill your Home feed.',
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          );
+                        }
+
+                        return ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(14, 8, 14, 16),
+                          itemCount: feed.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 12),
+                          itemBuilder: (context, index) {
+                            final doc = feed[index];
+                            return ActivityFeedCard(
+                              sessionId: doc.id,
+                              data: doc.data(),
+                              currentUserId: currentUser.uid,
+                              currentDisplayName: widget.displayName,
+                              firestore: _socialRepository.firestore,
+                              socialRepository: _socialRepository,
+                              durationLabel: _durationLabel,
+                            );
+                          },
+                        );
+                      },
+                    ),
             ),
           ],
         );
       },
+    );
+  }
+
+  Widget _buildSearchResults() {
+    if (_isSearching) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_searchResults.isEmpty) {
+      return const Center(
+        child: Text(
+          'No users found.',
+          style: TextStyle(color: Colors.black54),
+        ),
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.all(16),
+      itemCount: _searchResults.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      itemBuilder: (context, index) {
+        final user = _searchResults[index];
+        final id = user['id'] as String;
+        final displayName = user['displayName'] as String? ?? 'Athlete';
+        final username = user['username'] as String? ?? id.substring(0, 6);
+
+        return Card(
+          margin: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: ListTile(
+            leading: CircleAvatar(
+              backgroundColor: kBrandOrange,
+              foregroundColor: Colors.white,
+              child: Text(
+                displayName.isNotEmpty ? displayName[0].toUpperCase() : 'A',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+            title: Text(
+              displayName,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            subtitle: Text('@$username'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              // Navigate to the SearchedUserProfilePage
+              // We'll pass the necessary data
+              importSearchedUserProfilePageAndNavigate(context, id, displayName, username);
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  void importSearchedUserProfilePageAndNavigate(
+      BuildContext context, String id, String displayName, String username) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => SearchedUserProfilePage(
+          userId: id,
+          displayName: displayName,
+          username: username,
+        ),
+      ),
     );
   }
 
@@ -324,6 +406,44 @@ class _HomePageState extends State<HomePage> {
                         ),
                       ),
                     ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: InkWell(
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => const GroupsPage()),
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.6),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: Colors.black.withValues(alpha: 0.08),
+                            ),
+                          ),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.group, size: 14, color: Colors.black54),
+                              SizedBox(width: 4),
+                              Text(
+                                'My Groups',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.black54,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -336,11 +456,20 @@ class _HomePageState extends State<HomePage> {
                 Expanded(
                   child: TextField(
                     controller: _usernameController,
-                    textInputAction: TextInputAction.done,
-                    onSubmitted: (_) => _followUser(),
+                    textInputAction: TextInputAction.search,
+                    onSubmitted: (_) => _executeSearch(),
                     decoration: InputDecoration(
-                      hintText: 'Search users to follow',
+                      hintText: 'Search users',
                       prefixIcon: const Icon(Icons.search, size: 20),
+                      suffixIcon: _searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, size: 18),
+                              onPressed: () {
+                                _usernameController.clear();
+                                _executeSearch();
+                              },
+                            )
+                          : null,
                       isDense: true,
                       filled: true,
                       fillColor: Colors.white,
@@ -367,20 +496,14 @@ class _HomePageState extends State<HomePage> {
                 SizedBox(
                   height: 40,
                   child: FilledButton.icon(
-                    onPressed: _isFollowing ? null : _followUser,
-                    icon: Icon(
-                      _isFollowing ? Icons.hourglass_empty : Icons.person_add,
-                      size: 18,
-                    ),
-                    label: Text(
-                      _isFollowing ? 'Loading...' : 'Follow',
-                      style: const TextStyle(fontSize: 13),
+                    onPressed: _executeSearch,
+                    icon: const Icon(Icons.search, size: 18),
+                    label: const Text(
+                      'Search',
+                      style: TextStyle(fontSize: 13),
                     ),
                     style: FilledButton.styleFrom(
                       backgroundColor: kBrandOrange,
-                      disabledBackgroundColor: kBrandOrange.withValues(
-                        alpha: 0.5,
-                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(20),
                       ),
@@ -397,8 +520,8 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-class _ActivityFeedCard extends StatelessWidget {
-  const _ActivityFeedCard({
+class ActivityFeedCard extends StatelessWidget {
+  const ActivityFeedCard({
     required this.sessionId,
     required this.data,
     required this.currentUserId,

@@ -6,11 +6,14 @@ import 'package:flutter/material.dart';
 
 import 'package:fake_strava/core/theme.dart';
 import 'package:fake_strava/core/utils.dart';
+import 'package:fake_strava/home/home_page.dart';
+import 'package:fake_strava/home/social_repository.dart';
 
 class ProgressPage extends StatelessWidget {
-  const ProgressPage({super.key, required this.displayName});
+  ProgressPage({super.key, required this.displayName});
 
   final String displayName;
+  final SocialRepository _socialRepository = SocialRepository();
 
   String _progressErrorMessage(Object? error) {
     if (error is FirebaseException) {
@@ -24,6 +27,14 @@ class ProgressPage extends StatelessWidget {
       }
     }
     return 'Unable to load progress.\n\n$error';
+  }
+
+  String _durationLabel(int seconds) {
+    final duration = Duration(seconds: seconds > 0 ? seconds : 0);
+    final h = duration.inHours;
+    final m = duration.inMinutes.remainder(60);
+    final s = duration.inSeconds.remainder(60);
+    return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
   @override
@@ -139,44 +150,19 @@ class ProgressPage extends StatelessWidget {
               )
             else
               ...sessions.take(5).map((doc) {
-                final data = doc.data();
-                final startedAt = DateTime.tryParse(
-                  data['startedAt'] as String? ?? '',
-                );
-                final endedAt = DateTime.tryParse(
-                  data['endedAt'] as String? ?? '',
-                );
-                final distanceMeters =
-                    (data['distanceMeters'] as num?)?.toDouble() ?? 0;
-                final calories =
-                    (data['caloriesKcal'] as num?)?.toDouble() ?? 0;
-                final elevation =
-                    (data['elevationGainMeters'] as num?)?.toDouble() ?? 0;
-                final durationSeconds =
-                    (data['activeDurationSeconds'] as num?)?.toInt() ??
-                    ((startedAt != null && endedAt != null)
-                        ? endedAt.difference(startedAt).inSeconds
-                        : 0);
-                final pace = durationSeconds > 0 && distanceMeters > 0
-                    ? (durationSeconds / 60) / (distanceMeters / 1000)
-                    : 0.0;
                 return Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: Card(
-                    child: ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: kBrandOrange.withValues(alpha: 0.15),
-                        foregroundColor: kBrandOrange,
-                        child: const Icon(Icons.directions_run),
-                      ),
-                      title: Text(
-                        '${(distanceMeters / 1000).toStringAsFixed(2)} km',
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      subtitle: Text(
-                        '${formatSessionDuration(startedAt, endedAt, durationSeconds: durationSeconds)} · ${pace > 0 ? '${pace.toStringAsFixed(2)} min/km' : '-- min/km'} · ${calories.toStringAsFixed(0)} kcal · +${elevation.toStringAsFixed(0)} m',
-                      ),
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: ActivityFeedCard(
+                    sessionId: doc.id,
+                    data: doc.data(),
+                    currentUserId: userId ?? '',
+                    currentDisplayName: displayName,
+                    firestore: FirebaseFirestore.instanceFor(
+                      app: Firebase.app(),
+                      databaseId: 'fakestrava',
                     ),
+                    socialRepository: _socialRepository,
+                    durationLabel: _durationLabel,
                   ),
                 );
               }),

@@ -80,6 +80,32 @@ class SocialRepository {
     return targetUsername;
   }
 
+  Future<void> unfollowUser({
+    required String currentUserId,
+    required String targetUserId,
+  }) async {
+    await _firestore.collection('users').doc(currentUserId).set({
+      'followingIds': FieldValue.arrayRemove(<String>[targetUserId]),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  Future<List<Map<String, dynamic>>> searchUsersByPrefix({
+    required String prefix,
+  }) async {
+    final normalized = prefix.trim().toLowerCase();
+    if (normalized.isEmpty) return [];
+
+    final query = await _firestore
+        .collection('users')
+        .where('usernameLower', isGreaterThanOrEqualTo: normalized)
+        .where('usernameLower', isLessThan: '$normalized\uf8ff')
+        .limit(20)
+        .get();
+
+    return query.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
+  }
+
   Future<void> toggleLike({
     required String sessionId,
     required String currentUserId,

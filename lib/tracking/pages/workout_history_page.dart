@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -193,6 +194,7 @@ class WorkoutHistoryPage extends StatelessWidget {
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: firestore
             .collection('tracking_sessions')
+            .where('userId', isEqualTo: FirebaseAuth.instance.currentUser?.uid)
             .orderBy('startedAt', descending: true)
             .limit(50)
             .snapshots(),
