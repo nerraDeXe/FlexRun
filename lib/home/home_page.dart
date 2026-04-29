@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -8,6 +9,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import 'package:fake_strava/core/theme.dart';
+import 'package:fake_strava/core/ui_components.dart';
 import 'package:fake_strava/groups/groups_page.dart';
 import 'package:fake_strava/home/social_repository.dart';
 import 'package:fake_strava/home/searched_user_profile_page.dart';
@@ -24,7 +26,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final SocialRepository _socialRepository = SocialRepository();
   final TextEditingController _usernameController = TextEditingController();
-  
+
   String _searchQuery = '';
   List<Map<String, dynamic>> _searchResults = [];
   bool _isSearching = false;
@@ -58,7 +60,7 @@ class _HomePageState extends State<HomePage> {
   void _onSearchChanged() {
     final query = _usernameController.text.trim();
     if (_searchQuery == query) return;
-    
+
     setState(() {
       _searchQuery = query;
     });
@@ -83,7 +85,9 @@ class _HomePageState extends State<HomePage> {
     });
 
     try {
-      final results = await _socialRepository.searchUsersByPrefix(prefix: query);
+      final results = await _socialRepository.searchUsersByPrefix(
+        prefix: query,
+      );
       if (mounted && _searchQuery == query) {
         setState(() {
           _searchResults = results;
@@ -114,12 +118,20 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     if (Firebase.apps.isEmpty) {
-      return const Center(child: Text('Firebase is not ready yet.'));
+      return const EmptyStateWidget(
+        icon: Icons.cloud_off_outlined,
+        title: 'Feed unavailable',
+        subtitle: 'Firebase is not ready yet. Try again in a moment.',
+      );
     }
 
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) {
-      return const Center(child: Text('Please sign in to see Home feed.'));
+      return const EmptyStateWidget(
+        icon: Icons.person_off_outlined,
+        title: 'Sign in required',
+        subtitle: 'Please sign in to see the Home feed.',
+      );
     }
 
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
@@ -129,7 +141,7 @@ class _HomePageState extends State<HomePage> {
           .snapshots(),
       builder: (context, currentUserSnapshot) {
         if (!currentUserSnapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
+          return const _HomeLoadingState();
         }
 
         final userData =
@@ -168,18 +180,17 @@ class _HomePageState extends State<HomePage> {
                           .snapshots(),
                       builder: (context, feedSnapshot) {
                         if (feedSnapshot.hasError) {
-                          return Center(
-                            child: Padding(
-                              padding: const EdgeInsets.all(20),
-                              child: Text(
-                                'Unable to load activity feed.\n\n${feedSnapshot.error}',
-                                textAlign: TextAlign.center,
-                              ),
+                          return Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: ErrorStateWidget(
+                              message:
+                                  'Unable to load activity feed.\n${feedSnapshot.error}',
+                              onAction: () => setState(() {}),
                             ),
                           );
                         }
                         if (!feedSnapshot.hasData) {
-                          return const Center(child: CircularProgressIndicator());
+                          return const _HomeLoadingState();
                         }
 
                         final allDocs = feedSnapshot.data!.docs;
@@ -197,21 +208,19 @@ class _HomePageState extends State<HomePage> {
                             .toList(growable: false);
 
                         if (feed.isEmpty) {
-                          return const Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(20),
-                              child: Text(
-                                'No activity yet.\nStart a workout or follow more users to fill your Home feed.',
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
+                          return const EmptyStateWidget(
+                            icon: Icons.directions_run_outlined,
+                            title: 'No activity yet',
+                            subtitle:
+                                'Start a workout or follow more users to fill your Home feed.',
                           );
                         }
 
                         return ListView.separated(
                           padding: const EdgeInsets.fromLTRB(14, 8, 14, 16),
                           itemCount: feed.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 12),
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 12),
                           itemBuilder: (context, index) {
                             final doc = feed[index];
                             return ActivityFeedCard(
@@ -236,52 +245,58 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildSearchResults() {
     if (_isSearching) {
-      return const Center(child: CircularProgressIndicator());
+      return const _SearchLoadingState();
     }
 
     if (_searchResults.isEmpty) {
-      return const Center(
-        child: Text(
-          'No users found.',
-          style: TextStyle(color: Colors.black54),
-        ),
+      return const EmptyStateWidget(
+        icon: Icons.search_off,
+        title: 'No users found',
+        subtitle: 'Try a different username or shorten your search term.',
       );
     }
 
     return ListView.separated(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       itemCount: _searchResults.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      separatorBuilder: (_, __) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
         final user = _searchResults[index];
         final id = user['id'] as String;
         final displayName = user['displayName'] as String? ?? 'Athlete';
         final username = user['username'] as String? ?? id.substring(0, 6);
 
-        return Card(
-          margin: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+        return AppCard(
+          padding: const EdgeInsets.all(12),
+          onTap: () {
+            importSearchedUserProfilePageAndNavigate(
+              context,
+              id,
+              displayName,
+              username,
+            );
+          },
           child: ListTile(
+            contentPadding: EdgeInsets.zero,
             leading: CircleAvatar(
-              backgroundColor: kBrandOrange,
-              foregroundColor: Colors.white,
+              radius: 24,
+              backgroundColor: kBrandOrange.withValues(alpha: 0.12),
+              foregroundColor: kBrandOrange,
               child: Text(
                 displayName.isNotEmpty ? displayName[0].toUpperCase() : 'A',
-                style: const TextStyle(fontWeight: FontWeight.bold),
+                style: const TextStyle(fontWeight: FontWeight.w800),
               ),
             ),
-            title: Text(
-              displayName,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            subtitle: Text('@$username'),
-            trailing: const Icon(Icons.chevron_right),
+            title: Text(displayName, style: AppTypography.headingSmall),
+            subtitle: Text('@$username', style: AppTypography.bodySmall),
+            trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 16),
             onTap: () {
-              // Navigate to the SearchedUserProfilePage
-              // We'll pass the necessary data
-              importSearchedUserProfilePageAndNavigate(context, id, displayName, username);
+              importSearchedUserProfilePageAndNavigate(
+                context,
+                id,
+                displayName,
+                username,
+              );
             },
           ),
         );
@@ -290,7 +305,11 @@ class _HomePageState extends State<HomePage> {
   }
 
   void importSearchedUserProfilePageAndNavigate(
-      BuildContext context, String id, String displayName, String username) {
+    BuildContext context,
+    String id,
+    String displayName,
+    String username,
+  ) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => SearchedUserProfilePage(
@@ -313,145 +332,119 @@ class _HomePageState extends State<HomePage> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            kBrandOrange.withValues(alpha: 0.08),
-            kBrandOrange.withValues(alpha: 0.02),
-          ],
+          colors: [kBrandOrange.withValues(alpha: 0.11), Colors.white],
+        ),
+        border: Border(
+          bottom: BorderSide(color: Colors.black.withValues(alpha: 0.04)),
         ),
       ),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 50,
-                      height: 50,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            kBrandOrange,
-                            kBrandOrange.withValues(alpha: 0.7),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(12),
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        kBrandOrange,
+                        kBrandOrange.withValues(alpha: 0.72),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: kBrandOrange.withValues(alpha: 0.18),
+                        blurRadius: 18,
+                        offset: const Offset(0, 8),
                       ),
-                      child: Center(
-                        child: Text(
-                          displayName.isEmpty
-                              ? 'A'
-                              : displayName[0].toUpperCase(),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 24,
-                          ),
-                        ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Text(
+                      displayName.isEmpty ? 'A' : displayName[0].toUpperCase(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 24,
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            displayName,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          Text(
-                            '@$username',
-                            style: const TextStyle(
-                              fontSize: 13,
-                              color: Colors.black54,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.6),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: Colors.black.withValues(alpha: 0.08),
-                          ),
-                        ),
-                        child: Text(
-                          'Following $followingCount',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: Colors.black54,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Welcome back', style: AppTypography.captionSmall),
+                      const SizedBox(height: 2),
+                      Text(displayName, style: AppTypography.displaySmall),
+                      const SizedBox(height: 2),
+                      Text('@$username', style: AppTypography.bodySmall),
+                    ],
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const GroupsPage()),
+                    );
+                  },
+                  icon: const Icon(Icons.group_outlined, size: 18),
+                  label: const Text('Groups'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: kBrandBlack,
+                    backgroundColor: Colors.white.withValues(alpha: 0.78),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: InkWell(
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(builder: (_) => const GroupsPage()),
-                          );
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.6),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: Colors.black.withValues(alpha: 0.08),
-                            ),
-                          ),
-                          child: const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.group, size: 14, color: Colors.black54),
-                              SizedBox(width: 4),
-                              Text(
-                                'My Groups',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.black54,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
                     ),
-                  ],
+                  ),
                 ),
               ],
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-            child: Row(
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.85),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: kBrandOrange.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.group,
+                      size: 18,
+                      color: kBrandOrange,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Following $followingCount',
+                    style: AppTypography.labelLarge,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
               children: [
                 Expanded(
                   child: TextField(
@@ -474,47 +467,51 @@ class _HomePageState extends State<HomePage> {
                       filled: true,
                       fillColor: Colors.white,
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(24),
-                        borderSide: BorderSide(
-                          color: Colors.black.withValues(alpha: 0.1),
-                        ),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(24),
+                        borderRadius: BorderRadius.circular(16),
                         borderSide: BorderSide(
                           color: Colors.black.withValues(alpha: 0.08),
                         ),
                       ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide(
+                          color: Colors.black.withValues(alpha: 0.08),
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: const BorderSide(
+                          color: kBrandOrange,
+                          width: 1.5,
+                        ),
+                      ),
                       contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 10,
+                        horizontal: 6,
+                        vertical: 12,
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
                 SizedBox(
-                  height: 40,
-                  child: FilledButton.icon(
+                  height: 50,
+                  child: FilledButton(
                     onPressed: _executeSearch,
-                    icon: const Icon(Icons.search, size: 18),
-                    label: const Text(
-                      'Search',
-                      style: TextStyle(fontSize: 13),
-                    ),
                     style: FilledButton.styleFrom(
-                      backgroundColor: kBrandOrange,
+                      backgroundColor: kBrandBlack,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 18),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
                     ),
+                    child: const Icon(Icons.search_rounded, size: 20),
                   ),
                 ),
               ],
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -638,256 +635,225 @@ class ActivityFeedCard extends StatelessWidget {
         ? '$actorDisplayName · $startedLabel'
         : startedLabel;
 
-    return Material(
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 16,
-              offset: const Offset(0, 4),
+    return AppCard(
+      padding: EdgeInsets.zero,
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => _HomeActivityDetailPage(
+              firestore: firestore,
+              sessionId: sessionId,
+              sessionData: data,
+              actorTitle: title,
             ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: InkWell(
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => _HomeActivityDetailPage(
-                    firestore: firestore,
-                    sessionId: sessionId,
-                    sessionData: data,
-                    actorTitle: title,
-                  ),
-                ),
-              );
-            },
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Colors.white, Colors.white.withValues(alpha: 0.95)],
-                ),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          ),
+        );
+      },
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppBorderRadius.lg),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Colors.white, Colors.white.withValues(alpha: 0.96)],
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                kBrandOrange,
-                                kBrandOrange.withValues(alpha: 0.8),
-                              ],
-                            ),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Center(
-                            child: Text(
-                              (actorUsername.isNotEmpty
-                                      ? actorUsername[0]
-                                      : 'R')
-                                  .toUpperCase(),
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w800,
-                                fontSize: 22,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                title,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 15,
-                                ),
-                              ),
-                              Text(
-                                subtitle,
-                                style: const TextStyle(
-                                  color: Colors.black54,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.04),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Icon(
-                            Icons.arrow_outward,
-                            color: Colors.black54,
-                            size: 18,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
                     Container(
-                      padding: const EdgeInsets.all(12),
+                      width: 52,
+                      height: 52,
                       decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.02),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: Colors.black.withValues(alpha: 0.04),
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            kBrandOrange,
+                            kBrandOrange.withValues(alpha: 0.78),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Center(
+                        child: Text(
+                          (actorUsername.isNotEmpty ? actorUsername[0] : 'R')
+                              .toUpperCase(),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 22,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
-                      child: Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _pill(
-                            Icons.route,
-                            '${distanceKm.toStringAsFixed(2)} km',
-                          ),
-                          _pill(
-                            Icons.timer_outlined,
-                            durationLabel(durationSeconds),
-                          ),
-                          _pill(
-                            Icons.speed,
-                            pace > 0
-                                ? '${pace.toStringAsFixed(2)} min/km'
-                                : '-- min/km',
-                          ),
-                          _pill(
-                            Icons.local_fire_department,
-                            '${calories.toStringAsFixed(0)} kcal',
-                          ),
-                          _pill(
-                            Icons.terrain,
-                            '+${elevation.toStringAsFixed(0)} m',
+                          Text(title, style: AppTypography.headingSmall),
+                          const SizedBox(height: 2),
+                          Text(
+                            subtitle,
+                            style: AppTypography.bodySmall,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                      stream: likesCollection.snapshots(),
-                      builder: (context, likeSnapshot) {
-                        final likes =
-                            likeSnapshot.data?.docs ??
-                            const <
-                              QueryDocumentSnapshot<Map<String, dynamic>>
-                            >[];
-                        final likeCount = likes.length;
-                        final liked = likes.any(
-                          (doc) => doc.id == currentUserId,
-                        );
-                        return Row(
-                          children: [
-                            AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 8,
-                              ),
-                              decoration: BoxDecoration(
-                                color: liked
-                                    ? Colors.redAccent.withValues(alpha: 0.1)
-                                    : Colors.black.withValues(alpha: 0.04),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
+                    Container(
+                      padding: const EdgeInsets.all(9),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.04),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.arrow_outward_rounded,
+                        color: Colors.black54,
+                        size: 18,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: kSurface,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: Colors.black.withValues(alpha: 0.04),
+                    ),
+                  ),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _pill(Icons.route, '${distanceKm.toStringAsFixed(2)} km'),
+                      _pill(
+                        Icons.timer_outlined,
+                        durationLabel(durationSeconds),
+                      ),
+                      _pill(
+                        Icons.speed,
+                        pace > 0
+                            ? '${pace.toStringAsFixed(2)} min/km'
+                            : '-- min/km',
+                      ),
+                      _pill(
+                        Icons.local_fire_department,
+                        '${calories.toStringAsFixed(0)} kcal',
+                      ),
+                      _pill(
+                        Icons.terrain,
+                        '+${elevation.toStringAsFixed(0)} m',
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: likesCollection.snapshots(),
+                  builder: (context, likeSnapshot) {
+                    final likes =
+                        likeSnapshot.data?.docs ??
+                        const <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+                    final likeCount = likes.length;
+                    final liked = likes.any((doc) => doc.id == currentUserId);
+                    return Row(
+                      children: [
+                        Expanded(
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 180),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: liked
+                                  ? Colors.redAccent.withValues(alpha: 0.08)
+                                  : Colors.black.withValues(alpha: 0.04),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: InkWell(
+                              onTap: isMine
+                                  ? null
+                                  : () async {
+                                      await socialRepository.toggleLike(
+                                        sessionId: sessionId,
+                                        currentUserId: currentUserId,
+                                        like: !liked,
+                                        displayName: currentDisplayName,
+                                      );
+                                    },
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  GestureDetector(
-                                    onTap: isMine
-                                        ? null
-                                        : () async {
-                                            await socialRepository.toggleLike(
-                                              sessionId: sessionId,
-                                              currentUserId: currentUserId,
-                                              like: !liked,
-                                              displayName: currentDisplayName,
-                                            );
-                                          },
-                                    child: Icon(
-                                      liked
-                                          ? Icons.favorite
-                                          : Icons.favorite_border,
-                                      color: liked
-                                          ? Colors.redAccent
-                                          : Colors.black54,
-                                      size: 18,
-                                    ),
+                                  Icon(
+                                    liked
+                                        ? Icons.favorite
+                                        : Icons.favorite_border,
+                                    color: liked
+                                        ? Colors.redAccent
+                                        : Colors.black54,
+                                    size: 18,
                                   ),
-                                  const SizedBox(width: 6),
+                                  const SizedBox(width: 8),
                                   Text(
                                     '$likeCount ${likeCount == 1 ? 'like' : 'likes'}',
-                                    style: const TextStyle(
+                                    style: AppTypography.bodySmall.copyWith(
                                       color: Colors.black54,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
                                     ),
                                   ),
                                 ],
                               ),
                             ),
-                            if (isMine) ...[
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 8,
+                          ),
+                        ),
+                        if (isMine) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: kBrandOrange.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.check_circle_outline,
+                                  color: kBrandOrange,
+                                  size: 16,
                                 ),
-                                decoration: BoxDecoration(
-                                  color: kBrandOrange.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(8),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Your activity',
+                                  style: AppTypography.bodySmall.copyWith(
+                                    color: Colors.black54,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.check_circle_outline,
-                                      color: kBrandOrange,
-                                      size: 16,
-                                    ),
-                                    const SizedBox(width: 6),
-                                    const Text(
-                                      'Your activity',
-                                      style: TextStyle(
-                                        color: Colors.black54,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ],
-                        );
-                      },
-                    ),
-                  ],
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    );
+                  },
                 ),
-              ),
+              ],
             ),
           ),
         ),
@@ -899,23 +865,9 @@ class ActivityFeedCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.white.withValues(alpha: 0.8),
-            Colors.white.withValues(alpha: 0.6),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(10),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -965,6 +917,64 @@ class _HomeActivityDetailPage extends StatelessWidget {
     return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
+  /// Calculates pace in min/km format from distance and duration
+  /// Returns "M:SS" format (e.g., "6:45" for 6 minutes 45 seconds per km)
+  String _calculatePace(double distanceKm, int durationSeconds) {
+    if (distanceKm <= 0 || durationSeconds <= 0) {
+      return '--:--';
+    }
+    // Calculate seconds per km
+    final secondsPerKm = durationSeconds / distanceKm;
+    final minutes = (secondsPerKm / 60).floor();
+    final seconds = (secondsPerKm % 60).round();
+    return '$minutes:${seconds.toString().padLeft(2, '0')}';
+  }
+
+  /// Calculates speed in km/h for a given segment
+  double _calculateSpeed(LatLng start, LatLng end, int durationMs) {
+    if (durationMs <= 0) return 0;
+    // Approximate distance in km using Haversine formula simplified
+    const double earthRadiusKm = 6371;
+    final double lat1 = start.latitude * math.pi / 180;
+    final double lat2 = end.latitude * math.pi / 180;
+    final double dLat = (end.latitude - start.latitude) * math.pi / 180;
+    final double dLon = (end.longitude - start.longitude) * math.pi / 180;
+
+    final double a =
+        (1 - math.cos(dLat / 2)) / 2 +
+        math.cos(lat1) * math.cos(lat2) * (1 - math.cos(dLon / 2)) / 2;
+    final double distanceKm =
+        2 * earthRadiusKm * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+
+    final double durationHours = durationMs / (1000 * 60 * 60);
+    return distanceKm / durationHours;
+  }
+
+  /// Returns color based on speed: green (fast) → yellow → red (slow)
+  /// Assumes average running speed around 10 km/h
+  Color _getSpeedColor(double speedKmh) {
+    // Normalize speed: 15 km/h = fast (green), 5 km/h = slow (red)
+    final normalized = ((speedKmh - 5) / 10).clamp(0.0, 1.0);
+
+    if (normalized > 0.5) {
+      // Green to yellow
+      final t = (normalized - 0.5) * 2;
+      return Color.lerp(
+        const Color(0xFF4CAF50), // Green
+        const Color(0xFFFDD835), // Yellow
+        1 - t,
+      )!;
+    } else {
+      // Yellow to red
+      final t = normalized * 2;
+      return Color.lerp(
+        const Color(0xFFF44336), // Red
+        const Color(0xFFFDD835), // Yellow
+        1 - t,
+      )!;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final startedAt = DateTime.tryParse(
@@ -983,15 +993,15 @@ class _HomeActivityDetailPage extends StatelessWidget {
             : 0);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFAFAFA),
+      backgroundColor: kSurface,
       appBar: AppBar(
         title: Text(
           '$actorTitle Activity',
-          style: const TextStyle(fontWeight: FontWeight.w800),
+          style: AppTypography.headingMedium.copyWith(color: Colors.white),
         ),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 1,
+        backgroundColor: kBrandBlack,
+        foregroundColor: Colors.white,
+        elevation: 0,
         surfaceTintColor: Colors.transparent,
         centerTitle: false,
       ),
@@ -1004,18 +1014,17 @@ class _HomeActivityDetailPage extends StatelessWidget {
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Text(
-                  'Unable to load route map.\n\n${snapshot.error}',
-                  textAlign: TextAlign.center,
-                ),
+            return Padding(
+              padding: const EdgeInsets.all(16),
+              child: ErrorStateWidget(
+                message: 'Unable to load route map.\n${snapshot.error}',
+                onAction: () => Navigator.of(context).pop(),
+                actionLabel: 'Back',
               ),
             );
           }
           if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
+            return const _HomeDetailLoadingState();
           }
 
           final points = snapshot.data!.docs
@@ -1036,33 +1045,20 @@ class _HomeActivityDetailPage extends StatelessWidget {
               : const LatLng(3.1390, 101.6869);
 
           return ListView(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
             children: [
-              Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.08),
-                      blurRadius: 16,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
+              AppCard(
+                padding: EdgeInsets.zero,
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(AppBorderRadius.lg),
                   child: SizedBox(
-                    height: 280,
+                    height: 300,
                     child: points.isEmpty
-                        ? Container(
-                            color: Colors.grey[200],
-                            child: const Center(
-                              child: Text(
-                                'No route points available for this activity.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(color: Colors.grey),
-                              ),
-                            ),
+                        ? const EmptyStateWidget(
+                            icon: Icons.route_outlined,
+                            title: 'No route points',
+                            subtitle:
+                                'This activity does not have enough location data to draw a route.',
                           )
                         : FlutterMap(
                             options: MapOptions(
@@ -1083,76 +1079,33 @@ class _HomeActivityDetailPage extends StatelessWidget {
                               ),
                               if (points.length >= 2)
                                 PolylineLayer(
-                                  polylines: [
-                                    Polyline(
-                                      points: points,
-                                      strokeWidth: 6,
-                                      color: kBrandOrange,
-                                    ),
-                                  ],
+                                  polylines: _buildSpeedGradientPolylines(
+                                    points,
+                                    durationSeconds,
+                                  ),
                                 ),
                               MarkerLayer(
                                 markers: [
                                   if (points.isNotEmpty)
                                     Marker(
                                       point: points.first,
-                                      width: 32,
-                                      height: 32,
-                                      child: Container(
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFF2E7D32),
-                                          borderRadius: BorderRadius.circular(
-                                            20,
-                                          ),
-                                          border: Border.all(
-                                            color: Colors.white,
-                                            width: 3,
-                                          ),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.black.withValues(
-                                                alpha: 0.2,
-                                              ),
-                                              blurRadius: 8,
-                                            ),
-                                          ],
-                                        ),
-                                        child: const Icon(
-                                          Icons.play_arrow,
-                                          color: Colors.white,
-                                          size: 16,
-                                        ),
+                                      width: 34,
+                                      height: 34,
+                                      child: _routeMarker(
+                                        color: const Color(0xFF2E7D32),
+                                        icon: Icons.play_arrow,
+                                        iconSize: 16,
                                       ),
                                     ),
                                   if (points.length >= 2)
                                     Marker(
                                       point: points.last,
-                                      width: 32,
-                                      height: 32,
-                                      child: Container(
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFFC62828),
-                                          borderRadius: BorderRadius.circular(
-                                            20,
-                                          ),
-                                          border: Border.all(
-                                            color: Colors.white,
-                                            width: 3,
-                                          ),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.black.withValues(
-                                                alpha: 0.2,
-                                              ),
-                                              blurRadius: 8,
-                                            ),
-                                          ],
-                                        ),
-                                        child: const Icon(
-                                          Icons.flag,
-                                          color: Colors.white,
-                                          size: 14,
-                                        ),
+                                      width: 34,
+                                      height: 34,
+                                      child: _routeMarker(
+                                        color: const Color(0xFFC62828),
+                                        icon: Icons.flag,
+                                        iconSize: 14,
                                       ),
                                     ),
                                 ],
@@ -1170,19 +1123,7 @@ class _HomeActivityDetailPage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 14),
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.06),
-                      blurRadius: 12,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                padding: const EdgeInsets.all(14),
+              AppCard(
                 child: Wrap(
                   spacing: 10,
                   runSpacing: 10,
@@ -1198,6 +1139,11 @@ class _HomeActivityDetailPage extends StatelessWidget {
                       '',
                     ),
                     _metricPill(
+                      Icons.speed,
+                      _calculatePace(distanceKm, durationSeconds),
+                      'min/km',
+                    ),
+                    _metricPill(
                       Icons.local_fire_department,
                       '${calories.toStringAsFixed(0)}',
                       'kcal',
@@ -1210,6 +1156,8 @@ class _HomeActivityDetailPage extends StatelessWidget {
                   ],
                 ),
               ),
+              const SizedBox(height: 14),
+              _RanTogetherSection(firestore: firestore, sessionId: sessionId),
             ],
           );
         },
@@ -1217,20 +1165,37 @@ class _HomeActivityDetailPage extends StatelessWidget {
     );
   }
 
+  List<Polyline> _buildSpeedGradientPolylines(
+    List<LatLng> points,
+    int totalDurationSeconds,
+  ) {
+    if (points.length < 2) return [];
+
+    final polylines = <Polyline>[];
+    final segmentDurationMs =
+        (totalDurationSeconds * 1000) ~/ (points.length - 1);
+
+    for (int i = 0; i < points.length - 1; i++) {
+      final start = points[i];
+      final end = points[i + 1];
+      final speed = _calculateSpeed(start, end, segmentDurationMs);
+      final color = _getSpeedColor(speed);
+
+      polylines.add(
+        Polyline(points: [start, end], strokeWidth: 6, color: color),
+      );
+    }
+
+    return polylines;
+  }
+
   Widget _metricPill(IconData icon, String value, [String unit = '']) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Colors.white, Colors.white.withValues(alpha: 0.95)],
-        ),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8),
-        ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1253,7 +1218,7 @@ class _HomeActivityDetailPage extends StatelessWidget {
                 Text(
                   unit,
                   style: const TextStyle(
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.w600,
                     fontSize: 11,
                     color: Colors.black54,
                   ),
@@ -1262,6 +1227,229 @@ class _HomeActivityDetailPage extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _routeMarker({
+    required Color color,
+    required IconData icon,
+    required double iconSize,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white, width: 3),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 8),
+        ],
+      ),
+      child: Icon(icon, color: Colors.white, size: iconSize),
+    );
+  }
+}
+
+class _HomeLoadingState extends StatelessWidget {
+  const _HomeLoadingState();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: const [
+        SkeletonCard(height: 144),
+        SizedBox(height: 12),
+        SkeletonCard(height: 126),
+        SizedBox(height: 12),
+        SkeletonCard(height: 126),
+      ],
+    );
+  }
+}
+
+class _SearchLoadingState extends StatelessWidget {
+  const _SearchLoadingState();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      itemBuilder: (_, __) => const SkeletonCard(height: 70),
+      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      itemCount: 4,
+    );
+  }
+}
+
+class _HomeDetailLoadingState extends StatelessWidget {
+  const _HomeDetailLoadingState();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: const [
+        SkeletonCard(height: 300),
+        SizedBox(height: 14),
+        SkeletonCard(height: 120),
+        SizedBox(height: 14),
+        SkeletonCard(height: 120),
+      ],
+    );
+  }
+}
+
+/// Widget to display runners who ran concurrently (from "Ran with you" records)
+class _RanTogetherSection extends StatelessWidget {
+  const _RanTogetherSection({required this.firestore, required this.sessionId});
+
+  final FirebaseFirestore firestore;
+  final String sessionId;
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      future: firestore
+          .collection('tracking_sessions')
+          .doc(sessionId)
+          .collection('concurrent_runners')
+          .get(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return const SizedBox.shrink();
+        }
+
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        final concurrentRunners = snapshot.data!.docs;
+
+        return Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.06),
+                blurRadius: 12,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.people, size: 20, color: kBrandOrange),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Ran with you',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '${concurrentRunners.length}',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black54,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: concurrentRunners.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                itemBuilder: (context, index) {
+                  final doc = concurrentRunners[index];
+                  final data = doc.data();
+                  final displayName =
+                      data['concurrentUserDisplayName'] as String? ??
+                      'Unknown Runner';
+                  final overlapKm =
+                      (data['overlapDistanceKm'] as num?)?.toDouble() ?? 0;
+                  final timeTogetherSeconds =
+                      (data['timeTogetherSeconds'] as num?)?.toInt() ?? 0;
+                  final duration = Duration(seconds: timeTogetherSeconds);
+                  final durationStr =
+                      '${duration.inMinutes.remainder(60).toString().padLeft(2, '0')}:${duration.inSeconds.remainder(60).toString().padLeft(2, '0')}';
+
+                  return Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: Colors.black.withValues(alpha: 0.05),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 16,
+                          backgroundColor: kBrandOrange,
+                          foregroundColor: Colors.white,
+                          child: Text(
+                            displayName.isNotEmpty
+                                ? displayName[0].toUpperCase()
+                                : 'R',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                displayName,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              Text(
+                                '${overlapKm.toStringAsFixed(1)} km • $durationStr',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.black54,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(
+                          Icons.favorite_border,
+                          size: 18,
+                          color: kBrandOrange,
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

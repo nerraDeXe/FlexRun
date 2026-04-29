@@ -5,8 +5,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:fake_strava/core/theme.dart';
+import 'package:fake_strava/core/ui_components.dart';
 import 'package:fake_strava/auth/pages/account_security_page.dart';
 import 'package:fake_strava/tracking/pages/workout_history_page.dart';
 import 'user_metrics.dart';
@@ -30,6 +32,7 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   late UserMetricsRepository _metricsRepository;
   UserMetrics? _userMetrics;
+  bool _ghostMode = false;
 
   String _metricsErrorMessage(Object error, {required bool isSave}) {
     if (error is FirebaseException) {
@@ -52,6 +55,22 @@ class _ProfilePageState extends State<ProfilePage> {
     super.initState();
     _metricsRepository = UserMetricsRepository();
     _loadUserMetrics();
+    _loadGhostMode();
+  }
+
+  Future<void> _loadGhostMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _ghostMode = prefs.getBool('ghost_mode') ?? false;
+    });
+  }
+
+  Future<void> _setGhostMode(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('ghost_mode', value);
+    setState(() {
+      _ghostMode = value;
+    });
   }
 
   Future<void> _loadUserMetrics() async {
@@ -65,8 +84,10 @@ class _ProfilePageState extends State<ProfilePage> {
       });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_metricsErrorMessage(e, isSave: false))),
+        AppNotification.show(
+          context: context,
+          message: _metricsErrorMessage(e, isSave: false),
+          type: NotificationType.error,
         );
       }
     }
@@ -87,14 +108,18 @@ class _ProfilePageState extends State<ProfilePage> {
               _userMetrics = metrics;
             });
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Metrics saved successfully')),
+              AppNotification.show(
+                context: context,
+                message: 'Metrics saved successfully',
+                type: NotificationType.success,
               );
             }
           } catch (e) {
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(_metricsErrorMessage(e, isSave: true))),
+              AppNotification.show(
+                context: context,
+                message: _metricsErrorMessage(e, isSave: true),
+                type: NotificationType.error,
               );
             }
           }
@@ -105,8 +130,10 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _openHistory(BuildContext context) async {
     if (Firebase.apps.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Firebase is not ready yet.')),
+      AppNotification.show(
+        context: context,
+        message: 'Firebase is not ready yet.',
+        type: NotificationType.error,
       );
       return;
     }
@@ -118,9 +145,11 @@ class _ProfilePageState extends State<ProfilePage> {
             databaseId: 'fakestrava',
           ),
           onShareMessage: (message) {
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(SnackBar(content: Text(message)));
+            AppNotification.show(
+              context: context,
+              message: message,
+              type: NotificationType.info,
+            );
           },
         ),
       ),
@@ -130,9 +159,11 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> _openAccountSecurity(BuildContext context) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('No signed-in user found.')));
+      AppNotification.show(
+        context: context,
+        message: 'No signed-in user found.',
+        type: NotificationType.error,
+      );
       return;
     }
     await Navigator.of(context).push(
@@ -322,6 +353,14 @@ class _ProfilePageState extends State<ProfilePage> {
                 subtitle: const Text('Browse past runs and export GPX'),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => _openHistory(context),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.visibility_off_outlined),
+                title: const Text('Ghost Mode'),
+                subtitle: const Text('Hide your location from other runners'),
+                trailing: Switch(value: _ghostMode, onChanged: _setGhostMode),
+                onTap: () => _setGhostMode(!_ghostMode),
               ),
               const Divider(height: 1),
               ListTile(

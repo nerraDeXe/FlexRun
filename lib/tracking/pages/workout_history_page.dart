@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -10,6 +11,7 @@ import 'package:latlong2/latlong.dart';
 
 // Import our new internal files (will be available project-wide)
 import 'package:fake_strava/core/theme.dart';
+import 'package:fake_strava/core/ui_components.dart';
 
 class WorkoutHistoryPage extends StatelessWidget {
   const WorkoutHistoryPage({
@@ -531,12 +533,81 @@ class _WorkoutDetailPage extends StatelessWidget {
     return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
+  /// Calculates speed in km/h for a given segment
+  double _calculateSpeed(LatLng start, LatLng end, int durationMs) {
+    if (durationMs <= 0) return 0;
+    // Approximate distance in km using Haversine formula simplified
+    const double earthRadiusKm = 6371;
+    final double lat1 = start.latitude * math.pi / 180;
+    final double lat2 = end.latitude * math.pi / 180;
+    final double dLat = (end.latitude - start.latitude) * math.pi / 180;
+    final double dLon = (end.longitude - start.longitude) * math.pi / 180;
+
+    final double a =
+        (1 - math.cos(dLat / 2)) / 2 +
+        math.cos(lat1) * math.cos(lat2) * (1 - math.cos(dLon / 2)) / 2;
+    final double distanceKm =
+        2 * earthRadiusKm * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+
+    final double durationHours = durationMs / (1000 * 60 * 60);
+    return distanceKm / durationHours;
+  }
+
+  /// Returns color based on speed: green (fast) → yellow → red (slow)
+  /// Assumes average running speed around 10 km/h
+  Color _getSpeedColor(double speedKmh) {
+    // Normalize speed: 15 km/h = fast (green), 5 km/h = slow (red)
+    final normalized = ((speedKmh - 5) / 10).clamp(0.0, 1.0);
+
+    if (normalized > 0.5) {
+      // Green to yellow
+      final t = (normalized - 0.5) * 2;
+      return Color.lerp(
+        const Color(0xFF4CAF50), // Green
+        const Color(0xFFFDD835), // Yellow
+        1 - t,
+      )!;
+    } else {
+      // Yellow to red
+      final t = normalized * 2;
+      return Color.lerp(
+        const Color(0xFFF44336), // Red
+        const Color(0xFFFDD835), // Yellow
+        1 - t,
+      )!;
+    }
+  }
+
   String _formatDateTime(DateTime? value) {
     if (value == null) {
       return '--';
     }
     final local = value.toLocal();
     return '${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')} ${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+  }
+
+  List<Polyline> _buildSpeedGradientPolylines(
+    List<LatLng> points,
+    int totalDurationSeconds,
+  ) {
+    if (points.length < 2) return [];
+
+    final polylines = <Polyline>[];
+    final segmentDurationMs =
+        (totalDurationSeconds * 1000) ~/ (points.length - 1);
+
+    for (int i = 0; i < points.length - 1; i++) {
+      final start = points[i];
+      final end = points[i + 1];
+      final speed = _calculateSpeed(start, end, segmentDurationMs);
+      final color = _getSpeedColor(speed);
+
+      polylines.add(
+        Polyline(points: [start, end], strokeWidth: 6, color: color),
+      );
+    }
+
+    return polylines;
   }
 
   Widget _metricTile({
@@ -685,13 +756,10 @@ class _WorkoutDetailPage extends StatelessWidget {
                               ),
                               if (points.length >= 2)
                                 PolylineLayer(
-                                  polylines: [
-                                    Polyline(
-                                      points: points,
-                                      strokeWidth: 6,
-                                      color: kBrandOrange,
-                                    ),
-                                  ],
+                                  polylines: _buildSpeedGradientPolylines(
+                                    points,
+                                    durationSeconds,
+                                  ),
                                 ),
                               MarkerLayer(
                                 markers: [

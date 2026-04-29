@@ -18,13 +18,22 @@ class FakeStravaApp extends StatelessWidget {
           seedColor: kBrandOrange,
           primary: kBrandOrange,
           surface: kSurface,
+          secondary: kBrandBlack,
+          tertiary: kBrandOrange.withValues(alpha: 0.85),
         ),
         scaffoldBackgroundColor: kSurface,
         useMaterial3: true,
+        visualDensity: VisualDensity.standard,
         appBarTheme: const AppBarTheme(
           backgroundColor: kBrandBlack,
           foregroundColor: Colors.white,
           elevation: 0,
+          centerTitle: false,
+          titleTextStyle: TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+          ),
         ),
         cardTheme: CardThemeData(
           color: kSurfaceCard,
@@ -59,9 +68,33 @@ class FakeStravaApp extends StatelessWidget {
             ),
           ),
         ),
+        snackBarTheme: SnackBarThemeData(
+          backgroundColor: kBrandBlack,
+          contentTextStyle: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+        bottomSheetTheme: BottomSheetThemeData(
+          backgroundColor: kSurfaceCard,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+        ),
+        dialogTheme: DialogThemeData(
+          backgroundColor: kSurfaceCard,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+        ),
       ),
       home: AuthGate(bootstrapError: bootstrapError),
     );
   }
 }
-
