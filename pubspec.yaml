@@ -47,6 +47,7 @@ dependencies:
   flutter_tts: ^4.2.5
   flutter_blue_plus: ^1.31.11
   permission_handler: ^11.4.0
+  maplibre_gl: ^0.26.0
 
 dev_dependencies:
   flutter_test:

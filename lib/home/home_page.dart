@@ -8,8 +8,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
+import 'package:fake_strava/core/maplibre_config.dart';
 import 'package:fake_strava/core/theme.dart';
 import 'package:fake_strava/core/ui_components.dart';
+import 'package:fake_strava/home/flyover_replay_page_stub.dart'
+    if (dart.library.io) 'package:fake_strava/home/flyover_replay_page.dart';
 import 'package:fake_strava/groups/groups_page.dart';
 import 'package:fake_strava/home/social_repository.dart';
 import 'package:fake_strava/home/searched_user_profile_page.dart';
@@ -727,33 +730,65 @@ class ActivityFeedCard extends StatelessWidget {
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: kSurface,
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(16),
                     border: Border.all(
                       color: Colors.black.withValues(alpha: 0.04),
                     ),
                   ),
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
+                  child: Column(
                     children: [
-                      _pill(Icons.route, '${distanceKm.toStringAsFixed(2)} km'),
-                      _pill(
-                        Icons.timer_outlined,
-                        durationLabel(durationSeconds),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _statTile(
+                              icon: Icons.route,
+                              label: 'Distance',
+                              value: '${distanceKm.toStringAsFixed(2)} km',
+                              accent: kBrandOrange,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _statTile(
+                              icon: Icons.timer_outlined,
+                              label: 'Time',
+                              value: durationLabel(durationSeconds),
+                              accent: kInfo,
+                            ),
+                          ),
+                        ],
                       ),
-                      _pill(
-                        Icons.speed,
-                        pace > 0
-                            ? '${pace.toStringAsFixed(2)} min/km'
-                            : '-- min/km',
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _statTile(
+                              icon: Icons.speed,
+                              label: 'Pace',
+                              value: pace > 0
+                                  ? '${pace.toStringAsFixed(2)} min/km'
+                                  : '-- min/km',
+                              accent: kBrandBlack,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _statTile(
+                              icon: Icons.local_fire_department,
+                              label: 'Calories',
+                              value: '${calories.toStringAsFixed(0)} kcal',
+                              accent: kWarning,
+                            ),
+                          ),
+                        ],
                       ),
-                      _pill(
-                        Icons.local_fire_department,
-                        '${calories.toStringAsFixed(0)} kcal',
-                      ),
-                      _pill(
-                        Icons.terrain,
-                        '+${elevation.toStringAsFixed(0)} m',
+                      const SizedBox(height: 10),
+                      _statTile(
+                        icon: Icons.terrain,
+                        label: 'Elevation',
+                        value: '+${elevation.toStringAsFixed(0)} m',
+                        accent: kSuccess,
+                        isWide: true,
                       ),
                     ],
                   ),
@@ -861,25 +896,54 @@ class ActivityFeedCard extends StatelessWidget {
     );
   }
 
-  Widget _pill(IconData icon, String value) {
+  Widget _statTile({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color accent,
+    bool isWide = false,
+  }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
+        boxShadow: const [AppShadow.xs],
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Icon(icon, size: 15, color: kBrandOrange),
-          const SizedBox(width: 6),
-          Text(
-            value,
-            style: const TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 13,
-              color: Colors.black87,
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, size: 18, color: accent),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: AppTypography.labelSmall.copyWith(
+                    color: kTextSecondary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: AppTypography.bodyLarge.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                  maxLines: isWide ? 1 : 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
           ),
         ],
@@ -991,6 +1055,14 @@ class _HomeActivityDetailPage extends StatelessWidget {
         ((startedAt != null && endedAt != null)
             ? endedAt.difference(startedAt).inSeconds
             : 0);
+    final durationLabel = _formatDuration(startedAt, endedAt, durationSeconds);
+    final paceLabel = _calculatePace(distanceKm, durationSeconds);
+    final averageSpeed = durationSeconds > 0
+        ? distanceKm / (durationSeconds / 3600)
+        : 0.0;
+    final averageSpeedLabel = averageSpeed > 0
+        ? '${averageSpeed.toStringAsFixed(1)} km/h'
+        : '-- km/h';
 
     return Scaffold(
       backgroundColor: kSurface,
@@ -1047,6 +1119,20 @@ class _HomeActivityDetailPage extends StatelessWidget {
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
             children: [
+              _summaryCard(
+                distanceKm: distanceKm,
+                durationLabel: durationLabel,
+                paceLabel: paceLabel,
+                averageSpeedLabel: averageSpeedLabel,
+                dateLabel: _formatDateTime(startedAt),
+              ),
+              const SizedBox(height: 14),
+              _flyoverCard(
+                context: context,
+                points: points,
+                title: '$actorTitle Activity',
+              ),
+              const SizedBox(height: 14),
               AppCard(
                 padding: EdgeInsets.zero,
                 child: ClipRRect(
@@ -1124,34 +1210,49 @@ class _HomeActivityDetailPage extends StatelessWidget {
               ),
               const SizedBox(height: 14),
               AppCard(
-                child: Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _metricPill(
-                      Icons.route,
-                      '${distanceKm.toStringAsFixed(2)}',
-                      'km',
+                    Text('Activity details', style: AppTypography.headingSmall),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _detailTile(
+                            icon: Icons.schedule,
+                            label: 'Started',
+                            value: _formatDateTime(startedAt),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _detailTile(
+                            icon: Icons.flag,
+                            label: 'Ended',
+                            value: _formatDateTime(endedAt),
+                          ),
+                        ),
+                      ],
                     ),
-                    _metricPill(
-                      Icons.timer_outlined,
-                      _formatDuration(startedAt, endedAt, durationSeconds),
-                      '',
-                    ),
-                    _metricPill(
-                      Icons.speed,
-                      _calculatePace(distanceKm, durationSeconds),
-                      'min/km',
-                    ),
-                    _metricPill(
-                      Icons.local_fire_department,
-                      '${calories.toStringAsFixed(0)}',
-                      'kcal',
-                    ),
-                    _metricPill(
-                      Icons.terrain,
-                      '+${elevation.toStringAsFixed(0)}',
-                      'm',
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _detailTile(
+                            icon: Icons.local_fire_department,
+                            label: 'Calories',
+                            value: '${calories.toStringAsFixed(0)} kcal',
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _detailTile(
+                            icon: Icons.terrain,
+                            label: 'Elevation',
+                            value: '+${elevation.toStringAsFixed(0)} m',
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -1189,41 +1290,261 @@ class _HomeActivityDetailPage extends StatelessWidget {
     return polylines;
   }
 
-  Widget _metricPill(IconData icon, String value, [String unit = '']) {
+  String _formatDateTime(DateTime? dateTime) {
+    if (dateTime == null) {
+      return '--';
+    }
+    final local = dateTime.toLocal();
+    return '${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')} ${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+  }
+
+  Widget _summaryCard({
+    required double distanceKm,
+    required String durationLabel,
+    required String paceLabel,
+    required String averageSpeedLabel,
+    required String dateLabel,
+  }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [kBrandBlack, kBrandOrange.withValues(alpha: 0.92)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: const [AppShadow.lg],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Activity summary',
+            style: AppTypography.labelSmall.copyWith(color: Colors.white70),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            dateLabel,
+            style: AppTypography.bodySmall.copyWith(color: Colors.white70),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            '${distanceKm.toStringAsFixed(2)} km',
+            style: AppTypography.displayMedium.copyWith(color: Colors.white),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Total distance',
+            style: AppTypography.bodySmall.copyWith(color: Colors.white70),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _summaryStat(
+                  icon: Icons.timer_outlined,
+                  label: 'Duration',
+                  value: durationLabel,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _summaryStat(
+                  icon: Icons.speed,
+                  label: 'Pace',
+                  value: paceLabel,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _summaryStat(
+                  icon: Icons.bolt,
+                  label: 'Avg speed',
+                  value: averageSpeedLabel,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryStat({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(icon, size: 16, color: Colors.white),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  style:
+                      AppTypography.labelSmall.copyWith(color: Colors.white70),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: AppTypography.headingSmall.copyWith(
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _flyoverCard({
+    required BuildContext context,
+    required List<LatLng> points,
+    required String title,
+  }) {
+    final hasRoute = points.length >= 2;
+    final hasStyle = kResolvedMapStyleUrl.isNotEmpty;
+    final canFlyover = hasRoute && hasStyle;
+    final subtitle = !hasRoute
+        ? 'Not enough route data to replay yet.'
+        : !hasStyle
+            ? 'Add a MapTiler key or style URL to enable 3D replay.'
+            : 'Cinematic replay that follows your route.';
+    final buttonLabel = canFlyover
+        ? 'Play 3D flyover'
+        : hasStyle
+            ? 'Route too short'
+            : 'Key required';
+
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: kBrandOrange.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(
+                  Icons.threed_rotation_rounded,
+                  color: kBrandOrange,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('3D flyover replay', style: AppTypography.headingSmall),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: AppTypography.bodySmall.copyWith(
+                        color: kTextSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: canFlyover
+                  ? () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => buildFlyoverReplayPage(
+                            points: points,
+                            title: title,
+                          ),
+                        ),
+                      );
+                    }
+                  : null,
+              icon: const Icon(Icons.play_arrow_rounded),
+              label: Text(buttonLabel),
+              style: FilledButton.styleFrom(
+                backgroundColor: kBrandBlack,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _detailTile({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 18, color: kBrandOrange),
-          const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                value,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 16,
-                  color: Colors.black87,
-                ),
-              ),
-              if (unit.isNotEmpty)
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: kBrandOrange.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, size: 18, color: kBrandOrange),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 Text(
-                  unit,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 11,
-                    color: Colors.black54,
+                  label,
+                  style: AppTypography.labelSmall.copyWith(
+                    color: kTextSecondary,
                   ),
                 ),
-            ],
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: AppTypography.bodyMedium.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
           ),
         ],
       ),

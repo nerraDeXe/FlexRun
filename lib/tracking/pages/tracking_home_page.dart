@@ -1645,13 +1645,13 @@ class _TrackingHomePageState extends State<TrackingHomePage>
                                 'Press and hold for three seconds to save workout',
                             child: Tooltip(
                               message: 'Press and hold to finish',
-                              child: GestureDetector(
+                              child: Listener(
                                 behavior: HitTestBehavior.opaque,
-                                onTapDown: _canHoldToFinish
+                                onPointerDown: _canHoldToFinish
                                     ? (_) => _startFinishHold()
                                     : null,
-                                onTapUp: (_) => _cancelFinishHold(),
-                                onTapCancel: _cancelFinishHold,
+                                onPointerUp: (_) => _cancelFinishHold(),
+                                onPointerCancel: (_) => _cancelFinishHold(),
                                 child: Stack(
                                   alignment: Alignment.center,
                                   children: [
