@@ -19,13 +19,14 @@ class SearchedUserProfilePage extends StatefulWidget {
   final String username;
 
   @override
-  State<SearchedUserProfilePage> createState() => _SearchedUserProfilePageState();
+  State<SearchedUserProfilePage> createState() =>
+      _SearchedUserProfilePageState();
 }
 
 class _SearchedUserProfilePageState extends State<SearchedUserProfilePage> {
   final SocialRepository _socialRepository = SocialRepository();
   bool _isLoadingFollow = false;
-  
+
   String _durationLabel(int seconds) {
     final duration = Duration(seconds: seconds > 0 ? seconds : 0);
     final h = duration.inHours;
@@ -37,9 +38,9 @@ class _SearchedUserProfilePageState extends State<SearchedUserProfilePage> {
   Future<void> _toggleFollow(bool currentlyFollowing) async {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) return;
-    
+
     setState(() => _isLoadingFollow = true);
-    
+
     try {
       if (currentlyFollowing) {
         await _socialRepository.unfollowUser(
@@ -82,12 +83,17 @@ class _SearchedUserProfilePageState extends State<SearchedUserProfilePage> {
         foregroundColor: Colors.black,
       ),
       body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-        stream: _socialRepository.firestore.collection('users').doc(currentUser.uid).snapshots(),
+        stream: _socialRepository.firestore
+            .collection('users')
+            .doc(currentUser.uid)
+            .snapshots(),
         builder: (context, currentUserSnapshot) {
-          final currentUserData = currentUserSnapshot.data?.data() ?? const <String, dynamic>{};
-          final followingIds = ((currentUserData['followingIds'] as List?) ?? const <dynamic>[])
-              .whereType<String>()
-              .toList(growable: false);
+          final currentUserData =
+              currentUserSnapshot.data?.data() ?? const <String, dynamic>{};
+          final followingIds =
+              ((currentUserData['followingIds'] as List?) ?? const <dynamic>[])
+                  .whereType<String>()
+                  .toList(growable: false);
           final isFollowing = followingIds.contains(widget.userId);
 
           return Column(
@@ -95,7 +101,10 @@ class _SearchedUserProfilePageState extends State<SearchedUserProfilePage> {
               _buildProfileHeader(isMe: isMe, isFollowing: isFollowing),
               const Divider(height: 1),
               Expanded(
-                child: _buildActivityFeed(currentUser.uid, currentUserData['displayName'] ?? 'Athlete'),
+                child: _buildActivityFeed(
+                  currentUser.uid,
+                  currentUserData['displayName'] ?? 'Athlete',
+                ),
               ),
             ],
           );
@@ -114,7 +123,9 @@ class _SearchedUserProfilePageState extends State<SearchedUserProfilePage> {
             backgroundColor: kBrandOrange,
             foregroundColor: Colors.white,
             child: Text(
-              widget.displayName.isNotEmpty ? widget.displayName[0].toUpperCase() : 'A',
+              widget.displayName.isNotEmpty
+                  ? widget.displayName[0].toUpperCase()
+                  : 'A',
               style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
             ),
           ),
@@ -126,7 +137,11 @@ class _SearchedUserProfilePageState extends State<SearchedUserProfilePage> {
           const SizedBox(height: 4),
           Text(
             '@${widget.username}',
-            style: const TextStyle(fontSize: 14, color: Colors.black54, fontWeight: FontWeight.w600),
+            style: const TextStyle(
+              fontSize: 14,
+              color: Colors.black54,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(height: 16),
           if (!isMe)
@@ -134,11 +149,17 @@ class _SearchedUserProfilePageState extends State<SearchedUserProfilePage> {
               width: 150,
               height: 40,
               child: FilledButton(
-                onPressed: _isLoadingFollow ? null : () => _toggleFollow(isFollowing),
+                onPressed: _isLoadingFollow
+                    ? null
+                    : () => _toggleFollow(isFollowing),
                 style: FilledButton.styleFrom(
-                  backgroundColor: isFollowing ? Colors.grey[200] : kBrandOrange,
+                  backgroundColor: isFollowing
+                      ? Colors.grey[200]
+                      : kBrandOrange,
                   foregroundColor: isFollowing ? Colors.black87 : Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
                 ),
                 child: _isLoadingFollow
                     ? const SizedBox(
@@ -168,7 +189,9 @@ class _SearchedUserProfilePageState extends State<SearchedUserProfilePage> {
           .snapshots(),
       builder: (context, feedSnapshot) {
         if (feedSnapshot.hasError) {
-          return Center(child: Text('Unable to load activities: ${feedSnapshot.error}'));
+          return Center(
+            child: Text('Unable to load activities: ${feedSnapshot.error}'),
+          );
         }
         if (!feedSnapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
@@ -191,7 +214,7 @@ class _SearchedUserProfilePageState extends State<SearchedUserProfilePage> {
         return ListView.separated(
           padding: const EdgeInsets.fromLTRB(14, 16, 14, 16),
           itemCount: feed.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 12),
+          separatorBuilder: (_, _) => const SizedBox(height: 12),
           itemBuilder: (context, index) {
             final doc = feed[index];
             return ActivityFeedCard(

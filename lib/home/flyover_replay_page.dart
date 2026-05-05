@@ -12,15 +12,33 @@ import 'package:fake_strava/core/ui_components.dart';
 Widget buildFlyoverReplayPage({
   required List<geo.LatLng> points,
   required String title,
+  List<double>? elevations,
+  int durationSeconds = 0,
+  double distanceKm = 0.0,
 }) {
-  return _FlyoverReplayPage(points: points, title: title);
+  return _FlyoverReplayPage(
+    points: points,
+    title: title,
+    elevations: elevations,
+    durationSeconds: durationSeconds,
+    distanceKm: distanceKm,
+  );
 }
 
 class _FlyoverReplayPage extends StatefulWidget {
-  const _FlyoverReplayPage({required this.points, required this.title});
+  const _FlyoverReplayPage({
+    required this.points,
+    required this.title,
+    this.elevations,
+    this.durationSeconds = 0,
+    this.distanceKm = 0.0,
+  });
 
   final List<geo.LatLng> points;
   final String title;
+  final List<double>? elevations;
+  final int durationSeconds;
+  final double distanceKm;
 
   @override
   State<_FlyoverReplayPage> createState() => _FlyoverReplayPageState();
@@ -31,14 +49,19 @@ class _FlyoverReplayPageState extends State<_FlyoverReplayPage> {
   static const int _stepDurationMs = 650;
   static const double _tilt = 60;
   static const double _zoom = 16.3;
+  static const double _metersPerKm = 1000;
+  static const double _earthRadiusMeters = 6371000;
 
   maplibre.MapLibreMapController? _controller;
   maplibre.Line? _routeLine;
   Timer? _timer;
   late final List<geo.LatLng> _replayPoints = _downsample(widget.points);
+  late final List<double> _replayElevations = _downsampleElevations();
   late final List<maplibre.LatLng> _mapPoints = _replayPoints
       .map((point) => maplibre.LatLng(point.latitude, point.longitude))
       .toList(growable: false);
+  late final List<double> _cumulativeDistances =
+      _calculateCumulativeDistances();
   int _currentIndex = 0;
   bool _isPlaying = false;
   bool _styleReady = false;
@@ -50,6 +73,65 @@ class _FlyoverReplayPageState extends State<_FlyoverReplayPage> {
       _controller?.removeLine(_routeLine!);
     }
     super.dispose();
+  }
+
+  List<double> _downsampleElevations() {
+    if (widget.elevations == null || widget.elevations!.isEmpty) {
+      return List<double>.filled(_replayPoints.length, 0.0);
+    }
+    if (widget.elevations!.length == widget.points.length) {
+      if (widget.points.length <= _maxReplayPoints) {
+        return widget.elevations!;
+      }
+      final stride = (widget.points.length / _maxReplayPoints).ceil();
+      final sampled = <double>[];
+      for (int i = 0; i < widget.elevations!.length; i += stride) {
+        sampled.add(widget.elevations![i]);
+      }
+      if (sampled.isEmpty || sampled.length < _replayPoints.length) {
+        sampled.add(widget.elevations!.last);
+      }
+      return sampled.take(_replayPoints.length).toList();
+    }
+    return List<double>.filled(_replayPoints.length, 0.0);
+  }
+
+  List<double> _calculateCumulativeDistances() {
+    final distances = <double>[0.0];
+    for (int i = 1; i < _replayPoints.length; i++) {
+      final distance = _haversineDistance(_replayPoints[i - 1], _replayPoints[i]);
+      distances.add(distances.last + distance);
+    }
+    return distances;
+  }
+
+  double _haversineDistance(geo.LatLng start, geo.LatLng end) {
+    final lat1 = start.latitude * math.pi / 180;
+    final lat2 = end.latitude * math.pi / 180;
+    final dLat = (end.latitude - start.latitude) * math.pi / 180;
+    final dLon = (end.longitude - start.longitude) * math.pi / 180;
+    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(lat1) * math.cos(lat2) * math.sin(dLon / 2) * math.sin(dLon / 2);
+    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return (_earthRadiusMeters * c) / _metersPerKm;
+  }
+
+  String _formatDistance(double km) {
+    return km.toStringAsFixed(2);
+  }
+
+  String _formatElevation(double meters) {
+    return meters.toStringAsFixed(0);
+  }
+
+  String _formatPace() {
+    if (widget.distanceKm <= 0 || widget.durationSeconds <= 0) {
+      return '--:--';
+    }
+    final paceMinutesPerKm = (widget.durationSeconds / 60.0) / widget.distanceKm;
+    final minutes = paceMinutesPerKm.toInt();
+    final seconds = ((paceMinutesPerKm - minutes) * 60).toInt();
+    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
   }
 
   List<geo.LatLng> _downsample(List<geo.LatLng> points) {
@@ -117,9 +199,7 @@ class _FlyoverReplayPageState extends State<_FlyoverReplayPage> {
     await _controller!.addHillshadeLayer(
       'terrain-source',
       'terrain-hillshade',
-      maplibre.HillshadeLayerProperties(
-        hillshadeExaggeration: 0.6,
-      ),
+      maplibre.HillshadeLayerProperties(hillshadeExaggeration: 0.6),
     );
   }
 
@@ -239,10 +319,17 @@ class _FlyoverReplayPageState extends State<_FlyoverReplayPage> {
       );
     }
 
-    final progress =
-        _replayPoints.length <= 1
-            ? 0.0
-            : (_currentIndex / (_replayPoints.length - 1)).clamp(0.0, 1.0);
+    final progress = _replayPoints.length <= 1
+        ? 0.0
+        : (_currentIndex / (_replayPoints.length - 1)).clamp(0.0, 1.0);
+
+    final currentDistance = _currentIndex < _cumulativeDistances.length
+        ? _cumulativeDistances[_currentIndex]
+        : 0.0;
+    final currentElevation = _currentIndex < _replayElevations.length
+        ? _replayElevations[_currentIndex]
+        : 0.0;
+    final pace = _formatPace();
 
     return Scaffold(
       backgroundColor: kSurface,
@@ -267,6 +354,26 @@ class _FlyoverReplayPageState extends State<_FlyoverReplayPage> {
             myLocationEnabled: false,
             compassEnabled: false,
           ),
+          // Top stats overlay
+          Positioned(
+            top: 16,
+            left: 16,
+            right: 16,
+            child: SafeArea(
+              child: AppCard(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _buildStatColumn('Distance', '${_formatDistance(currentDistance)} km'),
+                    _buildStatColumn('Elevation', '${_formatElevation(currentElevation)} m'),
+                    _buildStatColumn('Pace', '$pace /km'),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          // Bottom controls
           Positioned(
             left: 16,
             right: 16,
@@ -278,9 +385,7 @@ class _FlyoverReplayPageState extends State<_FlyoverReplayPage> {
                   children: [
                     IconButton(
                       onPressed: _togglePlay,
-                      icon: Icon(
-                        _isPlaying ? Icons.pause : Icons.play_arrow,
-                      ),
+                      icon: Icon(_isPlaying ? Icons.pause : Icons.play_arrow),
                     ),
                     IconButton(
                       onPressed: _restartFlyover,
@@ -320,6 +425,28 @@ class _FlyoverReplayPageState extends State<_FlyoverReplayPage> {
             ),
         ],
       ),
+    );
+  }
+
+  Widget _buildStatColumn(String label, String value) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: AppTypography.labelSmall.copyWith(
+            color: Colors.black.withValues(alpha: 0.6),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: AppTypography.labelLarge.copyWith(
+            fontWeight: FontWeight.w600,
+            color: kBrandOrange,
+          ),
+        ),
+      ],
     );
   }
 }

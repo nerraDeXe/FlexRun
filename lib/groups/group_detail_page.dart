@@ -36,7 +36,9 @@ class GroupDetailPage extends StatelessWidget {
                   MaterialPageRoute(
                     builder: (_) => AddMembersPage(
                       groupId: groupId,
-                      currentMemberIds: List<String>.from(groupData['memberIds'] ?? []),
+                      currentMemberIds: List<String>.from(
+                        groupData['memberIds'] ?? [],
+                      ),
                     ),
                   ),
                 );
@@ -45,7 +47,10 @@ class GroupDetailPage extends StatelessWidget {
         ],
       ),
       body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-        stream: FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'fakestrava').collection('groups').doc(groupId).snapshots(),
+        stream: FirebaseFirestore.instanceFor(
+          app: Firebase.app(),
+          databaseId: 'fakestrava',
+        ).collection('groups').doc(groupId).snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return const Center(child: Text('Error loading group details'));
@@ -56,7 +61,9 @@ class GroupDetailPage extends StatelessWidget {
           }
 
           final currentData = snapshot.data!.data() ?? groupData;
-          final currentMemberIds = List<String>.from(currentData['memberIds'] ?? []);
+          final currentMemberIds = List<String>.from(
+            currentData['memberIds'] ?? [],
+          );
 
           return ListView(
             padding: const EdgeInsets.all(16),
@@ -64,7 +71,9 @@ class GroupDetailPage extends StatelessWidget {
               if (description.isNotEmpty) ...[
                 Text(
                   'About',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -73,13 +82,15 @@ class GroupDetailPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 24),
               ],
-              
+
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
                     'Members (${currentMemberIds.length})',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   if (isCreator)
                     TextButton.icon(
@@ -100,16 +111,20 @@ class GroupDetailPage extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               _MembersList(memberIds: currentMemberIds),
-              
+
               const SizedBox(height: 32),
               const Divider(),
               const SizedBox(height: 32),
-              
+
               // Future-proofing Placeholder
               Center(
                 child: Column(
                   children: [
-                    Icon(Icons.feed_outlined, size: 48, color: Colors.grey[400]),
+                    Icon(
+                      Icons.feed_outlined,
+                      size: 48,
+                      color: Colors.grey[400],
+                    ),
                     const SizedBox(height: 16),
                     Text(
                       'Group Feed',
@@ -150,28 +165,35 @@ class _MembersList extends StatelessWidget {
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         itemCount: memberIds.length,
-        separatorBuilder: (_, __) => const Divider(height: 1),
+        separatorBuilder: (_, _) => const Divider(height: 1),
         itemBuilder: (context, index) {
           final memberId = memberIds[index];
-          
+
           return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-            stream: FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'fakestrava').collection('users').doc(memberId).snapshots(),
+            stream: FirebaseFirestore.instanceFor(
+              app: Firebase.app(),
+              databaseId: 'fakestrava',
+            ).collection('users').doc(memberId).snapshots(),
             builder: (context, userSnapshot) {
               if (!userSnapshot.hasData) {
                 return const ListTile(
-                  leading: CircleAvatar(child: CircularProgressIndicator(strokeWidth: 2)),
+                  leading: CircleAvatar(
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
                   title: Text('Loading...'),
                 );
               }
-              
+
               final userData = userSnapshot.data!.data();
               if (userData == null) {
                 return const ListTile(title: Text('Unknown User'));
               }
-              
-              final displayName = userData['displayName'] as String? ?? 'Athlete';
-              final username = userData['username'] as String? ?? memberId.substring(0, 6);
-              
+
+              final displayName =
+                  userData['displayName'] as String? ?? 'Athlete';
+              final username =
+                  userData['username'] as String? ?? memberId.substring(0, 6);
+
               return ListTile(
                 leading: CircleAvatar(
                   backgroundColor: kBrandOrange.withValues(alpha: 0.2),
@@ -181,7 +203,10 @@ class _MembersList extends StatelessWidget {
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
-                title: Text(displayName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                title: Text(
+                  displayName,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
                 subtitle: Text('@$username'),
               );
             },

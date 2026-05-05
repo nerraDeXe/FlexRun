@@ -467,11 +467,13 @@ class _TrackingHomePageState extends State<TrackingHomePage>
       _ghostMode = !_ghostMode;
     });
     await prefs.setBool('ghost_mode', _ghostMode);
-    AppNotification.show(
-      context: context,
-      message: _ghostMode ? 'Ghost mode enabled' : 'Ghost mode disabled',
-      type: NotificationType.info,
-    );
+    if (mounted) {
+      AppNotification.show(
+        context: context,
+        message: _ghostMode ? 'Ghost mode enabled' : 'Ghost mode disabled',
+        type: NotificationType.info,
+      );
+    }
   }
 
   /// Calculates speed in km/h for a given segment
@@ -976,7 +978,9 @@ class _TrackingHomePageState extends State<TrackingHomePage>
                           await _hrService.disconnect();
                           if (mounted) {
                             setState(() {});
-                            Navigator.pop(context);
+                            if (mounted) {
+                              Navigator.of(mounted ? context : context).pop();
+                            }
                           }
                         },
                         child: const Text('Disconnect'),
@@ -1008,22 +1012,24 @@ class _TrackingHomePageState extends State<TrackingHomePage>
                   onTap: isConnected
                       ? null
                       : () async {
+                          final nav = Navigator.of(context);
+                          final scaffold = ScaffoldMessenger.of(context);
                           final success = await _hrService.connectToDevice(
                             device.device,
                           );
                           if (mounted) {
                             if (success) {
-                              AppNotification.show(
-                                context: context,
-                                message: 'Connected to HR monitor',
-                                type: NotificationType.success,
+                              scaffold.showSnackBar(
+                                const SnackBar(
+                                  content: Text('Connected to HR monitor'),
+                                ),
                               );
-                              Navigator.pop(context);
+                              nav.pop();
                             } else {
-                              AppNotification.show(
-                                context: context,
-                                message: 'Failed to connect to device',
-                                type: NotificationType.error,
+                              scaffold.showSnackBar(
+                                const SnackBar(
+                                  content: Text('Failed to connect to device'),
+                                ),
                               );
                             }
                           }

@@ -11,7 +11,6 @@ import 'package:latlong2/latlong.dart';
 
 // Import our new internal files (will be available project-wide)
 import 'package:fake_strava/core/theme.dart';
-import 'package:fake_strava/core/ui_components.dart';
 
 class WorkoutHistoryPage extends StatelessWidget {
   const WorkoutHistoryPage({

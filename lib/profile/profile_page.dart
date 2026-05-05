@@ -176,7 +176,7 @@ class _ProfilePageState extends State<ProfilePage> {
     final user = FirebaseAuth.instance.currentUser;
     final email = user?.email ?? 'Unknown';
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 28, 16, 16),
+      padding: const EdgeInsets.fromLTRB(16, 40, 16, 16),
       children: [
         Text(
           'Profile',

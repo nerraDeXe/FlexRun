@@ -220,10 +220,10 @@ class _HomePageState extends State<HomePage> {
                         }
 
                         return ListView.separated(
-                          padding: const EdgeInsets.fromLTRB(14, 8, 14, 16),
+                          padding: const EdgeInsets.fromLTRB(14, 12, 14, 20),
                           itemCount: feed.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(height: 12),
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(height: 14),
                           itemBuilder: (context, index) {
                             final doc = feed[index];
                             return ActivityFeedCard(
@@ -262,7 +262,7 @@ class _HomePageState extends State<HomePage> {
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       itemCount: _searchResults.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      separatorBuilder: (_, _) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
         final user = _searchResults[index];
         final id = user['id'] as String;
@@ -335,36 +335,38 @@ class _HomePageState extends State<HomePage> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [kBrandOrange.withValues(alpha: 0.11), Colors.white],
+          colors: [kBrandOrange.withValues(alpha: 0.08), Colors.white],
         ),
         border: Border(
-          bottom: BorderSide(color: Colors.black.withValues(alpha: 0.04)),
+          bottom: BorderSide(color: Colors.black.withValues(alpha: 0.06)),
         ),
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+        padding: const EdgeInsets.fromLTRB(16, 32, 16, 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Profile row with enhanced spacing
             Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Container(
-                  width: 52,
-                  height: 52,
+                  width: 56,
+                  height: 56,
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
                         kBrandOrange,
-                        kBrandOrange.withValues(alpha: 0.72),
+                        kBrandOrange.withValues(alpha: 0.68),
                       ],
                     ),
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(18),
                     boxShadow: [
                       BoxShadow(
-                        color: kBrandOrange.withValues(alpha: 0.18),
-                        blurRadius: 18,
+                        color: kBrandOrange.withValues(alpha: 0.22),
+                        blurRadius: 20,
                         offset: const Offset(0, 8),
                       ),
                     ],
@@ -375,140 +377,243 @@ class _HomePageState extends State<HomePage> {
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w900,
-                        fontSize: 24,
+                        fontSize: 26,
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Welcome back', style: AppTypography.captionSmall),
-                      const SizedBox(height: 2),
-                      Text(displayName, style: AppTypography.displaySmall),
-                      const SizedBox(height: 2),
-                      Text('@$username', style: AppTypography.bodySmall),
+                      Text(
+                        'Welcome back',
+                        style: AppTypography.captionSmall.copyWith(
+                          color: Colors.black.withValues(alpha: 0.6),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        displayName,
+                        style: AppTypography.displaySmall.copyWith(
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '@$username',
+                        style: AppTypography.bodySmall.copyWith(
+                          color: Colors.black.withValues(alpha: 0.5),
+                        ),
+                      ),
                     ],
                   ),
                 ),
-                TextButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const GroupsPage()),
-                    );
-                  },
-                  icon: const Icon(Icons.group_outlined, size: 18),
-                  label: const Text('Groups'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: kBrandBlack,
-                    backgroundColor: Colors.white.withValues(alpha: 0.78),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 12,
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        kBrandOrange.withValues(alpha: 0.1),
+                        kBrandOrange.withValues(alpha: 0.05),
+                      ],
                     ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const GroupsPage()),
+                        );
+                      },
+                      borderRadius: BorderRadius.circular(16),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.group_outlined,
+                              size: 18,
+                              color: kBrandOrange,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Groups',
+                              style: AppTypography.labelLarge.copyWith(
+                                color: kBrandOrange,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 18),
+            // Following badge with improved design
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.85),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.white,
+                    Colors.white.withValues(alpha: 0.9),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: kBrandOrange.withValues(alpha: 0.15),
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
               child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
-                    width: 34,
-                    height: 34,
+                    width: 36,
+                    height: 36,
                     decoration: BoxDecoration(
-                      color: kBrandOrange.withValues(alpha: 0.1),
+                      color: kBrandOrange.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Icon(
-                      Icons.group,
-                      size: 18,
+                    child: Icon(
+                      Icons.people_outline,
+                      size: 20,
                       color: kBrandOrange,
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 11),
                   Text(
                     'Following $followingCount',
-                    style: AppTypography.labelLarge,
+                    style: AppTypography.labelLarge.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black.withValues(alpha: 0.75),
+                    ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
+            // Enhanced search bar
             Row(
               children: [
                 Expanded(
-                  child: TextField(
-                    controller: _usernameController,
-                    textInputAction: TextInputAction.search,
-                    onSubmitted: (_) => _executeSearch(),
-                    decoration: InputDecoration(
-                      hintText: 'Search users',
-                      prefixIcon: const Icon(Icons.search, size: 20),
-                      suffixIcon: _searchQuery.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear, size: 18),
-                              onPressed: () {
-                                _usernameController.clear();
-                                _executeSearch();
-                              },
-                            )
-                          : null,
-                      isDense: true,
-                      filled: true,
-                      fillColor: Colors.white,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(18),
+                      boxShadow: [
+                        BoxShadow(
                           color: Colors.black.withValues(alpha: 0.08),
+                          blurRadius: 12,
+                          offset: const Offset(0, 2),
                         ),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide(
-                          color: Colors.black.withValues(alpha: 0.08),
+                      ],
+                    ),
+                    child: TextField(
+                      controller: _usernameController,
+                      textInputAction: TextInputAction.search,
+                      onSubmitted: (_) => _executeSearch(),
+                      style: AppTypography.bodySmall,
+                      decoration: InputDecoration(
+                        hintText: 'Search athletes',
+                        hintStyle: AppTypography.bodySmall.copyWith(
+                          color: Colors.black.withValues(alpha: 0.4),
                         ),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: const BorderSide(
-                          color: kBrandOrange,
-                          width: 1.5,
+                        prefixIcon: Padding(
+                          padding: const EdgeInsets.only(left: 16, right: 12),
+                          child: Icon(
+                            Icons.search_rounded,
+                            size: 22,
+                            color: Colors.black.withValues(alpha: 0.5),
+                          ),
                         ),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 12,
+                        suffixIcon: _searchQuery.isNotEmpty
+                            ? IconButton(
+                                icon: Icon(
+                                  Icons.close_rounded,
+                                  size: 20,
+                                  color: Colors.black.withValues(alpha: 0.5),
+                                ),
+                                onPressed: () {
+                                  _usernameController.clear();
+                                  _executeSearch();
+                                },
+                                splashRadius: 24,
+                              )
+                            : null,
+                        isDense: true,
+                        filled: true,
+                        fillColor: Colors.white,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(18),
+                          borderSide: BorderSide.none,
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(18),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(18),
+                          borderSide: BorderSide(
+                            color: kBrandOrange,
+                            width: 2,
+                          ),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 14,
+                        ),
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
-                SizedBox(
-                  height: 50,
-                  child: FilledButton(
-                    onPressed: _executeSearch,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: kBrandBlack,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 18),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                const SizedBox(width: 12),
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [kBrandOrange, kBrandOrange.withValues(alpha: 0.88)],
+                    ),
+                    borderRadius: BorderRadius.circular(18),
+                    boxShadow: [
+                      BoxShadow(
+                        color: kBrandOrange.withValues(alpha: 0.25),
+                        blurRadius: 16,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: _executeSearch,
+                      borderRadius: BorderRadius.circular(18),
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Icon(
+                          Icons.search_rounded,
+                          size: 22,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
-                    child: const Icon(Icons.search_rounded, size: 20),
                   ),
                 ),
               ],
@@ -522,6 +627,7 @@ class _HomePageState extends State<HomePage> {
 
 class ActivityFeedCard extends StatelessWidget {
   const ActivityFeedCard({
+    super.key,
     required this.sessionId,
     required this.data,
     required this.currentUserId,
@@ -659,29 +765,44 @@ class ActivityFeedCard extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Colors.white, Colors.white.withValues(alpha: 0.96)],
+              colors: [Colors.white, Colors.white.withValues(alpha: 0.98)],
             ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(18),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Header with avatar and info
                 Row(
                   children: [
                     Container(
-                      width: 52,
-                      height: 52,
+                      width: 56,
+                      height: 56,
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                           colors: [
                             kBrandOrange,
-                            kBrandOrange.withValues(alpha: 0.78),
+                            kBrandOrange.withValues(alpha: 0.75),
                           ],
                         ),
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(18),
+                        boxShadow: [
+                          BoxShadow(
+                            color: kBrandOrange.withValues(alpha: 0.2),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
                       ),
                       child: Center(
                         child: Text(
@@ -689,22 +810,29 @@ class ActivityFeedCard extends StatelessWidget {
                               .toUpperCase(),
                           style: const TextStyle(
                             fontWeight: FontWeight.w900,
-                            fontSize: 22,
+                            fontSize: 24,
                             color: Colors.white,
                           ),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 14),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(title, style: AppTypography.headingSmall),
-                          const SizedBox(height: 2),
+                          Text(
+                            title,
+                            style: AppTypography.headingSmall.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
                           Text(
                             subtitle,
-                            style: AppTypography.bodySmall,
+                            style: AppTypography.bodySmall.copyWith(
+                              color: Colors.black.withValues(alpha: 0.55),
+                            ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -712,27 +840,28 @@ class ActivityFeedCard extends StatelessWidget {
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.all(9),
+                      padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.04),
-                        borderRadius: BorderRadius.circular(12),
+                        color: kBrandOrange.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(14),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.arrow_outward_rounded,
-                        color: Colors.black54,
-                        size: 18,
+                        color: kBrandOrange,
+                        size: 20,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 16),
+                // Stats grid with enhanced design
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
                     color: kSurface,
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(18),
                     border: Border.all(
-                      color: Colors.black.withValues(alpha: 0.04),
+                      color: Colors.black.withValues(alpha: 0.05),
                     ),
                   ),
                   child: Column(
@@ -793,7 +922,7 @@ class ActivityFeedCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
                 StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                   stream: likesCollection.snapshots(),
                   builder: (context, likeSnapshot) {
@@ -806,78 +935,112 @@ class ActivityFeedCard extends StatelessWidget {
                       children: [
                         Expanded(
                           child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 180),
+                            duration: const Duration(milliseconds: 200),
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 10,
+                              horizontal: 14,
+                              vertical: 12,
                             ),
                             decoration: BoxDecoration(
-                              color: liked
-                                  ? Colors.redAccent.withValues(alpha: 0.08)
-                                  : Colors.black.withValues(alpha: 0.04),
-                              borderRadius: BorderRadius.circular(14),
+                              gradient: LinearGradient(
+                                colors: liked
+                                    ? [
+                                        Colors.redAccent.withValues(alpha: 0.12),
+                                        Colors.redAccent.withValues(alpha: 0.08),
+                                      ]
+                                    : [
+                                        Colors.black.withValues(alpha: 0.05),
+                                        Colors.black.withValues(alpha: 0.03),
+                                      ],
+                              ),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: liked
+                                    ? Colors.redAccent.withValues(alpha: 0.15)
+                                    : Colors.black.withValues(alpha: 0.08),
+                                width: 1,
+                              ),
                             ),
-                            child: InkWell(
-                              onTap: isMine
-                                  ? null
-                                  : () async {
-                                      await socialRepository.toggleLike(
-                                        sessionId: sessionId,
-                                        currentUserId: currentUserId,
-                                        like: !liked,
-                                        displayName: currentDisplayName,
-                                      );
-                                    },
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    liked
-                                        ? Icons.favorite
-                                        : Icons.favorite_border,
-                                    color: liked
-                                        ? Colors.redAccent
-                                        : Colors.black54,
-                                    size: 18,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    '$likeCount ${likeCount == 1 ? 'like' : 'likes'}',
-                                    style: AppTypography.bodySmall.copyWith(
-                                      color: Colors.black54,
-                                      fontWeight: FontWeight.w700,
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: isMine
+                                    ? null
+                                    : () async {
+                                        await socialRepository.toggleLike(
+                                          sessionId: sessionId,
+                                          currentUserId: currentUserId,
+                                          like: !liked,
+                                          displayName: currentDisplayName,
+                                        );
+                                      },
+                                borderRadius: BorderRadius.circular(16),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    AnimatedScale(
+                                      scale: liked ? 1.1 : 1.0,
+                                      duration: const Duration(milliseconds: 200),
+                                      child: Icon(
+                                        liked
+                                            ? Icons.favorite_rounded
+                                            : Icons.favorite_border_rounded,
+                                        color: liked
+                                            ? Colors.redAccent
+                                            : Colors.black.withValues(alpha: 0.6),
+                                        size: 20,
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                    const SizedBox(width: 10),
+                                    Text(
+                                      '$likeCount ${likeCount == 1 ? 'like' : 'likes'}',
+                                      style: AppTypography.bodySmall.copyWith(
+                                        color: liked
+                                            ? Colors.redAccent
+                                            : Colors.black.withValues(alpha: 0.65),
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
                         ),
                         if (isMine) ...[
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 10),
                           Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 10,
+                              horizontal: 14,
+                              vertical: 12,
                             ),
                             decoration: BoxDecoration(
-                              color: kBrandOrange.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(14),
+                              gradient: LinearGradient(
+                                colors: [
+                                  kBrandOrange.withValues(alpha: 0.15),
+                                  kBrandOrange.withValues(alpha: 0.1),
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: kBrandOrange.withValues(alpha: 0.2),
+                                width: 1,
+                              ),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(
-                                  Icons.check_circle_outline,
+                                Icon(
+                                  Icons.check_circle_rounded,
                                   color: kBrandOrange,
-                                  size: 16,
+                                  size: 20,
                                 ),
-                                const SizedBox(width: 6),
+                                const SizedBox(width: 8),
                                 Text(
                                   'Your activity',
                                   style: AppTypography.bodySmall.copyWith(
-                                    color: Colors.black54,
-                                    fontWeight: FontWeight.w700,
+                                    color: kBrandOrange,
+                                    fontWeight: FontWeight.w800,
                                   ),
                                 ),
                               ],
@@ -904,26 +1067,35 @@ class ActivityFeedCard extends StatelessWidget {
     bool isWide = false,
   }) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
-        boxShadow: const [AppShadow.xs],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: accent.withValues(alpha: 0.08),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: accent.withValues(alpha: 0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
-            width: 36,
-            height: 36,
+            width: 40,
+            height: 40,
             decoration: BoxDecoration(
-              color: accent.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
+              color: accent.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(13),
             ),
-            child: Icon(icon, size: 18, color: accent),
+            child: Icon(icon, size: 20, color: accent),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -931,14 +1103,17 @@ class ActivityFeedCard extends StatelessWidget {
                 Text(
                   label,
                   style: AppTypography.labelSmall.copyWith(
-                    color: kTextSecondary,
+                    color: Colors.black.withValues(alpha: 0.55),
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 5),
                 Text(
                   value,
                   style: AppTypography.bodyLarge.copyWith(
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.black.withValues(alpha: 0.9),
+                    letterSpacing: -0.3,
                   ),
                   maxLines: isWide ? 1 : 2,
                   overflow: TextOverflow.ellipsis,
@@ -1112,6 +1287,20 @@ class _HomeActivityDetailPage extends StatelessWidget {
               .whereType<LatLng>()
               .toList(growable: false);
 
+          final elevations = snapshot.data!.docs
+              .map((doc) {
+                final data = doc.data();
+                final lat = (data['latitude'] as num?)?.toDouble();
+                final lon = (data['longitude'] as num?)?.toDouble();
+                final elevation = (data['elevation'] as num?)?.toDouble() ?? 0.0;
+                if (lat == null || lon == null) {
+                  return null;
+                }
+                return elevation;
+              })
+              .whereType<double>()
+              .toList(growable: false);
+
           final center = points.isNotEmpty
               ? points.first
               : const LatLng(3.1390, 101.6869);
@@ -1130,7 +1319,10 @@ class _HomeActivityDetailPage extends StatelessWidget {
               _flyoverCard(
                 context: context,
                 points: points,
+                elevations: elevations,
                 title: '$actorTitle Activity',
+                durationSeconds: durationSeconds,
+                distanceKm: distanceKm,
               ),
               const SizedBox(height: 14),
               AppCard(
@@ -1415,7 +1607,10 @@ class _HomeActivityDetailPage extends StatelessWidget {
   Widget _flyoverCard({
     required BuildContext context,
     required List<LatLng> points,
+    required List<double>? elevations,
     required String title,
+    required int durationSeconds,
+    required double distanceKm,
   }) {
     final hasRoute = points.length >= 2;
     final hasStyle = kResolvedMapStyleUrl.isNotEmpty;
@@ -1478,6 +1673,9 @@ class _HomeActivityDetailPage extends StatelessWidget {
                           builder: (_) => buildFlyoverReplayPage(
                             points: points,
                             title: title,
+                            elevations: elevations,
+                            durationSeconds: durationSeconds,
+                            distanceKm: distanceKm,
                           ),
                         ),
                       );
@@ -1595,8 +1793,8 @@ class _SearchLoadingState extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-      itemBuilder: (_, __) => const SkeletonCard(height: 70),
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      itemBuilder: (_, _) => const SkeletonCard(height: 70),
+      separatorBuilder: (_, _) => const SizedBox(height: 10),
       itemCount: 4,
     );
   }
@@ -1690,7 +1888,7 @@ class _RanTogetherSection extends StatelessWidget {
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: concurrentRunners.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                separatorBuilder: (_, _) => const SizedBox(height: 8),
                 itemBuilder: (context, index) {
                   final doc = concurrentRunners[index];
                   final data = doc.data();

@@ -5,7 +5,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
 import 'package:fake_strava/core/theme.dart';
-import 'package:fake_strava/core/utils.dart';
 import 'package:fake_strava/home/home_page.dart';
 import 'package:fake_strava/home/social_repository.dart';
 
@@ -98,80 +97,121 @@ class ProgressPage extends StatelessWidget {
           color: kSurface,
           child: SafeArea(
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              padding: const EdgeInsets.fromLTRB(16, 24, 16, 28),
               children: [
-              Text('Hi, $displayName', style: AppTypography.displaySmall),
-              const SizedBox(height: 6),
-              Text(
-                'Here is your momentum from the last 7 days.',
-                style: AppTypography.bodySmall.copyWith(color: kTextSecondary),
-              ),
-              const SizedBox(height: 16),
-              _ProgressSummaryCard(distanceKm: weekDistanceKm),
-              const SizedBox(height: 18),
-              const _SectionHeader(
-                title: 'Highlights',
-                subtitle: 'Weekly totals and personal averages',
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _ProgressMetricCard(
-                      label: 'Workouts',
-                      value: '$weekWorkoutCount',
-                      icon: Icons.fitness_center,
-                      accent: kInfo,
+                // Enhanced header section
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        kBrandOrange.withValues(alpha: 0.08),
+                        Colors.white,
+                      ],
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _ProgressMetricCard(
-                      label: 'Calories',
-                      value: '${weekCalories.toStringAsFixed(0)} kcal',
-                      icon: Icons.local_fire_department,
-                      accent: kWarning,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              _ProgressMetricCard(
-                label: 'Average distance',
-                value: '${averageDistanceKm.toStringAsFixed(2)} km / workout',
-                icon: Icons.auto_graph,
-                accent: kSuccess,
-                fullWidth: true,
-              ),
-              const SizedBox(height: 18),
-              const _SectionHeader(
-                title: 'Recent sessions',
-                subtitle: 'Your latest 5 activities',
-              ),
-              const SizedBox(height: 10),
-              if (sessions.isEmpty)
-                const _EmptyStateCard(
-                  title: 'No workouts yet',
-                  subtitle: 'Start your first run to see progress here.',
-                )
-              else
-                ...sessions.take(5).map((doc) {
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: ActivityFeedCard(
-                      sessionId: doc.id,
-                      data: doc.data(),
-                      currentUserId: userId ?? '',
-                      currentDisplayName: displayName,
-                      firestore: FirebaseFirestore.instanceFor(
-                        app: Firebase.app(),
-                        databaseId: 'fakestrava',
+                    border: Border(
+                      bottom: BorderSide(
+                        color: Colors.black.withValues(alpha: 0.06),
                       ),
-                      socialRepository: _socialRepository,
-                      durationLabel: _durationLabel,
                     ),
-                  );
-                }),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                  margin: const EdgeInsets.only(bottom: 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Progress',
+                        style: AppTypography.displaySmall.copyWith(
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Hi, $displayName',
+                        style: AppTypography.headingSmall.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black.withValues(alpha: 0.65),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Here is your momentum from the last 7 days.',
+                        style: AppTypography.bodySmall.copyWith(
+                          color: Colors.black.withValues(alpha: 0.55),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                _ProgressSummaryCard(distanceKm: weekDistanceKm),
+                const SizedBox(height: 24),
+                const _SectionHeader(
+                  title: 'Highlights',
+                  subtitle: 'Weekly totals and personal averages',
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _ProgressMetricCard(
+                        label: 'Workouts',
+                        value: '$weekWorkoutCount',
+                        icon: Icons.fitness_center,
+                        accent: kInfo,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _ProgressMetricCard(
+                        label: 'Calories',
+                        value: '${weekCalories.toStringAsFixed(0)} kcal',
+                        icon: Icons.local_fire_department,
+                        accent: kWarning,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _ProgressMetricCard(
+                  label: 'Average distance',
+                  value: '${averageDistanceKm.toStringAsFixed(2)} km / workout',
+                  icon: Icons.auto_graph,
+                  accent: kSuccess,
+                  fullWidth: true,
+                ),
+                const SizedBox(height: 24),
+                const _SectionHeader(
+                  title: 'Recent sessions',
+                  subtitle: 'Your latest 5 activities',
+                ),
+                const SizedBox(height: 12),
+                if (sessions.isEmpty)
+                  const _EmptyStateCard(
+                    title: 'No workouts yet',
+                    subtitle: 'Start your first run to see progress here.',
+                  )
+                else
+                  ...sessions.take(5).map((doc) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 14),
+                      child: ActivityFeedCard(
+                        sessionId: doc.id,
+                        data: doc.data(),
+                        currentUserId: userId ?? '',
+                        currentDisplayName: displayName,
+                        firestore: FirebaseFirestore.instanceFor(
+                          app: Firebase.app(),
+                          databaseId: 'fakestrava',
+                        ),
+                        socialRepository: _socialRepository,
+                        durationLabel: _durationLabel,
+                      ),
+                    );
+                  }),
               ],
             ),
           ),
@@ -189,57 +229,69 @@ class _ProgressSummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [kBrandBlack, kBrandOrange],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: const [AppShadow.lg],
+        borderRadius: BorderRadius.circular(26),
+        boxShadow: [
+          BoxShadow(
+            color: kBrandOrange.withValues(alpha: 0.22),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Stack(
         children: [
           Positioned(
-            right: -8,
-            top: -12,
+            right: -12,
+            top: -16,
             child: Icon(
               Icons.directions_run,
-              size: 120,
-              color: Colors.white.withValues(alpha: 0.12),
+              size: 140,
+              color: Colors.white.withValues(alpha: 0.1),
             ),
           ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'This week',
-                style: AppTypography.labelSmall.copyWith(color: Colors.white70),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                '${distanceKm.toStringAsFixed(2)} km',
-                style: AppTypography.displayLarge.copyWith(color: Colors.white),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Total distance',
-                style: AppTypography.bodySmall.copyWith(color: Colors.white70),
-              ),
-              const SizedBox(height: 14),
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(999),
+                  color: Colors.white.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   'Last 7 days',
-                  style: AppTypography.labelSmall.copyWith(color: Colors.white),
+                  style: AppTypography.captionSmall.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                '${distanceKm.toStringAsFixed(2)} km',
+                style: AppTypography.displayLarge.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.8,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Total distance',
+                style: AppTypography.bodySmall.copyWith(
+                  color: Colors.white.withValues(alpha: 0.8),
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ],
@@ -264,14 +316,18 @@ class _SectionHeader extends StatelessWidget {
         Text(
           title,
           style: AppTypography.headingLarge.copyWith(
-            fontWeight: FontWeight.w800,
+            fontWeight: FontWeight.w900,
+            letterSpacing: -0.4,
           ),
         ),
         if (subtitle != null) ...[
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           Text(
             subtitle!,
-            style: AppTypography.bodySmall.copyWith(color: kTextSecondary),
+            style: AppTypography.bodySmall.copyWith(
+              color: Colors.black.withValues(alpha: 0.55),
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ],
       ],
@@ -298,32 +354,52 @@ class _ProgressMetricCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: fullWidth ? double.infinity : null,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: kSurfaceCard,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: kDivider),
-        boxShadow: const [AppShadow.sm],
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: accent.withValues(alpha: 0.12),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: accent.withValues(alpha: 0.06),
+            blurRadius: 14,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: [
           Container(
-            width: 44,
-            height: 44,
+            width: 50,
+            height: 50,
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
                   accent.withValues(alpha: 0.2),
-                  accent.withValues(alpha: 0.45),
+                  accent.withValues(alpha: 0.5),
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: accent.withValues(alpha: 0.12),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
-            child: Icon(icon, color: accent),
+            child: Icon(
+              icon,
+              color: accent,
+              size: 24,
+            ),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -331,14 +407,17 @@ class _ProgressMetricCard extends StatelessWidget {
                 Text(
                   label,
                   style: AppTypography.labelSmall.copyWith(
-                    color: kTextSecondary,
+                    color: Colors.black.withValues(alpha: 0.55),
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 Text(
                   value,
                   style: AppTypography.headingLarge.copyWith(
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.black.withValues(alpha: 0.9),
+                    letterSpacing: -0.3,
                   ),
                 ),
               ],
@@ -359,35 +438,67 @@ class _EmptyStateCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: kSurfaceCard,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: kDivider),
-        boxShadow: const [AppShadow.sm],
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: kBrandOrange.withValues(alpha: 0.15),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: kBrandOrange.withValues(alpha: 0.08),
+            blurRadius: 14,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: [
           Container(
-            width: 44,
-            height: 44,
+            width: 50,
+            height: 50,
             decoration: BoxDecoration(
-              color: kBrandOrange.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(14),
+              gradient: LinearGradient(
+                colors: [
+                  kBrandOrange.withValues(alpha: 0.15),
+                  kBrandOrange.withValues(alpha: 0.08),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: kBrandOrange.withValues(alpha: 0.1),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
-            child: const Icon(Icons.directions_run, color: kBrandOrange),
+            child: Icon(
+              Icons.directions_run_rounded,
+              color: kBrandOrange,
+              size: 24,
+            ),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: AppTypography.headingSmall),
-                const SizedBox(height: 4),
+                Text(
+                  title,
+                  style: AppTypography.headingSmall.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: Colors.black.withValues(alpha: 0.85),
+                  ),
+                ),
+                const SizedBox(height: 6),
                 Text(
                   subtitle,
                   style: AppTypography.bodySmall.copyWith(
-                    color: kTextSecondary,
+                    color: Colors.black.withValues(alpha: 0.55),
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],

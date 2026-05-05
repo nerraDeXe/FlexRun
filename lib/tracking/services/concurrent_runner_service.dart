@@ -1,7 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_strava/core/utils.dart';
 import 'package:fake_strava/tracking/models/concurrent_runner.dart';
-import 'package:latlong2/latlong.dart';
 
 class ConcurrentRunnerService {
   final FirebaseFirestore firestore;
@@ -76,7 +75,6 @@ class ConcurrentRunnerService {
 
       return runners;
     } catch (e) {
-      print('Error finding nearby runners: $e');
       return [];
     }
   }
@@ -174,7 +172,6 @@ class ConcurrentRunnerService {
         );
       }).toList();
     } catch (e) {
-      print('Error retrieving ran together sessions: $e');
       return [];
     }
   }

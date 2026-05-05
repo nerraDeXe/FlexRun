@@ -21,7 +21,7 @@ class AddMembersPage extends StatefulWidget {
 class _AddMembersPageState extends State<AddMembersPage> {
   final GroupRepository _repo = GroupRepository();
   final TextEditingController _searchController = TextEditingController();
-  
+
   String _searchQuery = '';
   List<Map<String, dynamic>> _searchResults = [];
   bool _isSearching = false;
@@ -45,7 +45,7 @@ class _AddMembersPageState extends State<AddMembersPage> {
   void _onSearchChanged() {
     final query = _searchController.text.trim();
     if (_searchQuery == query) return;
-    
+
     setState(() {
       _searchQuery = query;
     });
@@ -93,19 +93,21 @@ class _AddMembersPageState extends State<AddMembersPage> {
 
     try {
       await _repo.addMemberToGroup(groupId: widget.groupId, userId: userId);
-      
+
       if (mounted) {
         // Technically, we should add to widget.currentMemberIds so it immediately updates UI,
         // but `widget` fields are final. We'll just rely on the stream in the parent page to update it.
         // For visual feedback here, we can temporarily add it to a local copy if we want,
         // but pop-ing back or just changing button to "Added" works.
-        widget.currentMemberIds.add(userId); // Since it's a list reference, this mutates the original list.
+        widget.currentMemberIds.add(
+          userId,
+        ); // Since it's a list reference, this mutates the original list.
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to add user: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to add user: $e')));
       }
     } finally {
       if (mounted) {
@@ -117,9 +119,7 @@ class _AddMembersPageState extends State<AddMembersPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Add Members'),
-      ),
+      appBar: AppBar(title: const Text('Add Members')),
       body: Column(
         children: [
           Padding(
@@ -143,9 +143,7 @@ class _AddMembersPageState extends State<AddMembersPage> {
               ),
             ),
           ),
-          Expanded(
-            child: _buildSearchResults(),
-          ),
+          Expanded(child: _buildSearchResults()),
         ],
       ),
     );
@@ -174,7 +172,7 @@ class _AddMembersPageState extends State<AddMembersPage> {
     return ListView.separated(
       padding: const EdgeInsets.all(16),
       itemCount: _searchResults.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
         final user = _searchResults[index];
         final id = user['id'] as String;
@@ -203,7 +201,13 @@ class _AddMembersPageState extends State<AddMembersPage> {
             trailing: isAlreadyMember
                 ? const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 16),
-                    child: Text('Added', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                    child: Text(
+                      'Added',
+                      style: TextStyle(
+                        color: Colors.green,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   )
                 : FilledButton(
                     onPressed: isAdding ? null : () => _addMember(id),
@@ -215,7 +219,10 @@ class _AddMembersPageState extends State<AddMembersPage> {
                         ? const SizedBox(
                             width: 16,
                             height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
                           )
                         : const Text('Add'),
                   ),

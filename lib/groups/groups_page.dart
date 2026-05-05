@@ -20,14 +20,14 @@ class GroupsPage extends StatelessWidget {
     final repo = GroupRepository();
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('My Groups'),
-      ),
+      appBar: AppBar(title: const Text('My Groups')),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: repo.getUserGroupsStream(user.uid),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            return Center(child: Text('Error loading groups: ${snapshot.error}'));
+            return Center(
+              child: Text('Error loading groups: ${snapshot.error}'),
+            );
           }
 
           if (!snapshot.hasData) {
@@ -43,14 +43,18 @@ class GroupsPage extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.group_outlined, size: 64, color: Colors.grey[400]),
+                    Icon(
+                      Icons.group_outlined,
+                      size: 64,
+                      color: Colors.grey[400],
+                    ),
                     const SizedBox(height: 16),
                     Text(
                       'No Groups Yet',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.grey[600],
-                          ),
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey[600],
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -67,7 +71,7 @@ class GroupsPage extends StatelessWidget {
           return ListView.separated(
             padding: const EdgeInsets.all(16),
             itemCount: docs.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            separatorBuilder: (_, _) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
               final doc = docs[index];
               final data = doc.data();
@@ -80,7 +84,8 @@ class GroupsPage extends StatelessWidget {
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => GroupDetailPage(groupId: doc.id, groupData: data),
+                        builder: (_) =>
+                            GroupDetailPage(groupId: doc.id, groupData: data),
                       ),
                     );
                   },
@@ -132,14 +137,17 @@ class GroupsPage extends StatelessWidget {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const CreateGroupPage()),
-          );
+          Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const CreateGroupPage()));
         },
         backgroundColor: kBrandOrange,
         foregroundColor: Colors.white,
         icon: const Icon(Icons.add),
-        label: const Text('Create Group', style: TextStyle(fontWeight: FontWeight.bold)),
+        label: const Text(
+          'Create Group',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
       ),
     );
   }
