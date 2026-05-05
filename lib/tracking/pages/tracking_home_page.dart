@@ -779,25 +779,52 @@ class _TrackingHomePageState extends State<TrackingHomePage>
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: active
-            ? kBrandOrange.withValues(alpha: 0.88)
-            : Colors.black.withValues(alpha: 0.42),
-        borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+        gradient: LinearGradient(
+          colors: active
+              ? [
+                  kBrandOrange.withValues(alpha: 0.95),
+                  kBrandOrange.withValues(alpha: 0.75),
+                ]
+              : [
+                  Colors.black.withValues(alpha: 0.48),
+                  Colors.black.withValues(alpha: 0.36),
+                ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: active ? 0.3 : 0.2),
+          width: 1.2,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.16),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+            color: (active ? kBrandOrange : Colors.black)
+                .withValues(alpha: 0.22),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
-      child: IconButton(
-        onPressed: onTap,
-        tooltip: tooltip,
-        icon: Icon(icon, color: Colors.white, size: 20),
-        padding: const EdgeInsets.all(6),
-        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: Tooltip(
+            message: tooltip ?? '',
+            child: Container(
+              width: 38,
+              height: 38,
+              alignment: Alignment.center,
+              child: Icon(
+                icon,
+                color: Colors.white,
+                size: 22,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -808,22 +835,38 @@ class _TrackingHomePageState extends State<TrackingHomePage>
     required Color tone,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: tone.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: tone.withValues(alpha: 0.35)),
+        gradient: LinearGradient(
+          colors: [
+            tone.withValues(alpha: 0.14),
+            tone.withValues(alpha: 0.08),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: tone.withValues(alpha: 0.4),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: tone.withValues(alpha: 0.12),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: tone),
-          const SizedBox(width: 7),
+          Icon(icon, size: 18, color: tone),
+          const SizedBox(width: 8),
           Text(
             label,
             style: TextStyle(
-              color: Colors.black.withValues(alpha: 0.76),
-              fontWeight: FontWeight.w700,
+              color: tone,
+              fontWeight: FontWeight.w800,
+              fontSize: 13,
             ),
           ),
         ],
@@ -1131,38 +1174,59 @@ class _TrackingHomePageState extends State<TrackingHomePage>
           ),
           SafeArea(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
               child: Row(
                 children: [
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
+                      horizontal: 14,
+                      vertical: 10,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.56),
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.black.withValues(alpha: 0.62),
+                          Colors.black.withValues(alpha: 0.48),
+                        ],
+                      ),
                       borderRadius: BorderRadius.circular(999),
                       border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.2),
+                        color: Colors.white.withValues(alpha: 0.25),
+                        width: 1.2,
                       ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.3),
+                          blurRadius: 16,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Container(
-                          width: 9,
-                          height: 9,
+                          width: 10,
+                          height: 10,
                           decoration: BoxDecoration(
                             color: _trackingStatusColor,
                             borderRadius: BorderRadius.circular(99),
+                            boxShadow: [
+                              BoxShadow(
+                                color: _trackingStatusColor.withValues(alpha: 0.4),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 10),
                         Text(
                           _trackingStatusLabel,
                           style: const TextStyle(
-                            fontWeight: FontWeight.w700,
+                            fontWeight: FontWeight.w800,
                             color: Colors.white,
+                            fontSize: 14,
                           ),
                         ),
                       ],
@@ -1171,17 +1235,23 @@ class _TrackingHomePageState extends State<TrackingHomePage>
                   const SizedBox(width: 12),
                   const Spacer(),
                   Container(
-                    padding: const EdgeInsets.all(4),
+                    padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.40),
-                      borderRadius: BorderRadius.circular(16),
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.black.withValues(alpha: 0.48),
+                          Colors.black.withValues(alpha: 0.36),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(18),
                       border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.16),
+                        color: Colors.white.withValues(alpha: 0.2),
+                        width: 1.2,
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.2),
-                          blurRadius: 14,
+                          color: Colors.black.withValues(alpha: 0.24),
+                          blurRadius: 18,
                           offset: const Offset(0, 6),
                         ),
                       ],
@@ -1294,21 +1364,24 @@ class _TrackingHomePageState extends State<TrackingHomePage>
               onVerticalDragEnd: _onPanelDragEnd,
               child: Container(
                 width: double.infinity,
-                padding: EdgeInsets.fromLTRB(14, 12, 14, 12 + bottomInset),
+                padding: EdgeInsets.fromLTRB(14, 14, 14, 14 + bottomInset),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
+                  gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [Color(0xFFFDFDFE), Color(0xFFF7F8FB)],
+                    colors: [
+                      const Color(0xFFFDFDFE),
+                      const Color(0xFFF5F7FC),
+                    ],
                   ),
                   borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(30),
+                    top: Radius.circular(36),
                   ),
-                  boxShadow: const [
+                  boxShadow: [
                     BoxShadow(
-                      color: Color(0x28000000),
-                      blurRadius: 22,
-                      offset: Offset(0, -6),
+                      color: Colors.black.withValues(alpha: 0.12),
+                      blurRadius: 32,
+                      offset: const Offset(0, -8),
                     ),
                   ],
                 ),
@@ -1322,66 +1395,86 @@ class _TrackingHomePageState extends State<TrackingHomePage>
                         child: Column(
                           children: [
                             Container(
-                              width: 42,
-                              height: 4,
+                              width: 48,
+                              height: 5,
                               decoration: BoxDecoration(
-                                color: Colors.black.withValues(alpha: 0.12),
+                                gradient: LinearGradient(
+                                  colors: [
+                                    kBrandOrange.withValues(alpha: 0.3),
+                                    kBrandOrange.withValues(alpha: 0.1),
+                                  ],
+                                ),
                                 borderRadius: BorderRadius.circular(999),
                               ),
                             ),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 6),
                             Icon(
                               _isPanelCollapsed
                                   ? Icons.keyboard_arrow_up_rounded
                                   : Icons.keyboard_arrow_down_rounded,
-                              size: 18,
-                              color: Colors.black45,
+                              size: 20,
+                              color: kBrandOrange.withValues(alpha: 0.6),
                             ),
                           ],
                         ),
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
                     Row(
                       children: [
                         Expanded(
                           child: Text(
                             _elapsedLabel(),
                             style: const TextStyle(
-                              fontSize: 32,
+                              fontSize: 36,
                               fontWeight: FontWeight.w900,
                               color: kBrandBlack,
                               fontFeatures: [FontFeature.tabularFigures()],
+                              letterSpacing: -0.8,
                             ),
                           ),
                         ),
                         AnimatedContainer(
                           duration: const Duration(milliseconds: 220),
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 7,
+                            horizontal: 14,
+                            vertical: 9,
                           ),
                           decoration: BoxDecoration(
-                            color: _trackingStatusColor.withValues(alpha: 0.14),
+                            gradient: LinearGradient(
+                              colors: [
+                                _trackingStatusColor.withValues(alpha: 0.18),
+                                _trackingStatusColor.withValues(alpha: 0.1),
+                              ],
+                            ),
                             border: Border.all(
                               color: _trackingStatusColor.withValues(
-                                alpha: 0.3,
+                                alpha: 0.35,
                               ),
+                              width: 1.2,
                             ),
                             borderRadius: BorderRadius.circular(999),
+                            boxShadow: [
+                              BoxShadow(
+                                color: _trackingStatusColor
+                                    .withValues(alpha: 0.1),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
                           ),
                           child: Text(
                             _trackingStatusLabel,
                             style: TextStyle(
                               color: _trackingStatusColor,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 13,
                             ),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 12),
                     Row(
                       children: [
                         Expanded(
@@ -1409,14 +1502,14 @@ class _TrackingHomePageState extends State<TrackingHomePage>
                     SizeTransition(
                       sizeFactor: ReverseAnimation(_panelController),
                       axisAlignment: -1.0,
-                      child: const Padding(
-                        padding: EdgeInsets.only(top: 8.0),
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 10),
                         child: Text(
-                          'Summary mode. Swipe up for full details.',
+                          'Swipe up for detailed stats',
                           style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.black54,
-                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                            color: Colors.black.withValues(alpha: 0.5),
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ),
@@ -1427,7 +1520,7 @@ class _TrackingHomePageState extends State<TrackingHomePage>
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 12),
                           Row(
                             children: [
                               Expanded(
@@ -1502,10 +1595,10 @@ class _TrackingHomePageState extends State<TrackingHomePage>
                               ),
                             ],
                           ),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 12),
                           Wrap(
-                            spacing: 8,
-                            runSpacing: 6,
+                            spacing: 10,
+                            runSpacing: 8,
                             children: [
                               _buildStatusInfoChip(
                                 icon: _hasLiveLocationFix
@@ -1534,15 +1627,15 @@ class _TrackingHomePageState extends State<TrackingHomePage>
                               ),
                             ],
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 10),
                           Text(
                             _canHoldToFinish
                                 ? 'Press and hold Finish for 3 seconds to save workout'
                                 : 'Start a workout to enable pause and finish',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.black54,
-                              fontWeight: FontWeight.w600,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.black.withValues(alpha: 0.5),
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
                         ],

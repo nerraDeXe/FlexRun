@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -1244,11 +1245,16 @@ class _HomeActivityDetailPage extends StatelessWidget {
       appBar: AppBar(
         title: Text(
           '$actorTitle Activity',
-          style: AppTypography.headingMedium.copyWith(color: Colors.white),
+          style: AppTypography.headingMedium.copyWith(
+            color: Colors.white,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.5,
+          ),
         ),
         backgroundColor: kBrandBlack,
         foregroundColor: Colors.white,
-        elevation: 0,
+        elevation: 8,
+        shadowColor: Colors.black26,
         surfaceTintColor: Colors.transparent,
         centerTitle: false,
       ),
@@ -1330,7 +1336,7 @@ class _HomeActivityDetailPage extends StatelessWidget {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(AppBorderRadius.lg),
                   child: SizedBox(
-                    height: 300,
+                    height: 320,
                     child: points.isEmpty
                         ? const EmptyStateWidget(
                             icon: Icons.route_outlined,
@@ -1338,62 +1344,107 @@ class _HomeActivityDetailPage extends StatelessWidget {
                             subtitle:
                                 'This activity does not have enough location data to draw a route.',
                           )
-                        : FlutterMap(
-                            options: MapOptions(
-                              initialCenter: center,
-                              initialZoom: 15,
-                              initialCameraFit: points.length >= 2
-                                  ? CameraFit.bounds(
-                                      bounds: LatLngBounds.fromPoints(points),
-                                      padding: const EdgeInsets.all(28),
-                                    )
-                                  : null,
-                            ),
+                        : Stack(
                             children: [
-                              TileLayer(
-                                urlTemplate: kMapThemeOptions[0].urlTemplate,
-                                subdomains: kMapThemeOptions[0].subdomains,
-                                userAgentPackageName: 'com.company.fakestrava',
+                              FlutterMap(
+                                options: MapOptions(
+                                  initialCenter: center,
+                                  initialZoom: 15,
+                                  initialCameraFit: points.length >= 2
+                                      ? CameraFit.bounds(
+                                          bounds: LatLngBounds.fromPoints(points),
+                                          padding: const EdgeInsets.all(28),
+                                        )
+                                      : null,
+                                ),
+                                children: [
+                                  TileLayer(
+                                    urlTemplate: kMapThemeOptions[0].urlTemplate,
+                                    subdomains: kMapThemeOptions[0].subdomains,
+                                    userAgentPackageName: 'com.company.fakestrava',
+                                  ),
+                                  if (points.length >= 2)
+                                    PolylineLayer(
+                                      polylines: _buildSpeedGradientPolylines(
+                                        points,
+                                        durationSeconds,
+                                      ),
+                                    ),
+                                  MarkerLayer(
+                                    markers: [
+                                      if (points.isNotEmpty)
+                                        Marker(
+                                          point: points.first,
+                                          width: 40,
+                                          height: 40,
+                                          child: _routeMarker(
+                                            color: const Color(0xFF2E7D32),
+                                            icon: Icons.play_arrow,
+                                            iconSize: 18,
+                                          ),
+                                        ),
+                                      if (points.length >= 2)
+                                        Marker(
+                                          point: points.last,
+                                          width: 40,
+                                          height: 40,
+                                          child: _routeMarker(
+                                            color: const Color(0xFFC62828),
+                                            icon: Icons.flag,
+                                            iconSize: 16,
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                  RichAttributionWidget(
+                                    attributions: [
+                                      TextSourceAttribution(
+                                        kMapThemeOptions[0].attribution,
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ),
-                              if (points.length >= 2)
-                                PolylineLayer(
-                                  polylines: _buildSpeedGradientPolylines(
-                                    points,
-                                    durationSeconds,
+                              Positioned(
+                                top: 12,
+                                left: 12,
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: BackdropFilter(
+                                    filter: ui.ImageFilter.blur(
+                                      sigmaX: 10,
+                                      sigmaY: 10,
+                                    ),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 8,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.black.withValues(alpha: 0.5),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(
+                                            Icons.route,
+                                            color: Colors.white,
+                                            size: 14,
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            'Route map',
+                                            style: AppTypography.labelSmall.copyWith(
+                                              color: Colors.white70,
+                                              fontSize: 11,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
                                   ),
                                 ),
-                              MarkerLayer(
-                                markers: [
-                                  if (points.isNotEmpty)
-                                    Marker(
-                                      point: points.first,
-                                      width: 34,
-                                      height: 34,
-                                      child: _routeMarker(
-                                        color: const Color(0xFF2E7D32),
-                                        icon: Icons.play_arrow,
-                                        iconSize: 16,
-                                      ),
-                                    ),
-                                  if (points.length >= 2)
-                                    Marker(
-                                      point: points.last,
-                                      width: 34,
-                                      height: 34,
-                                      child: _routeMarker(
-                                        color: const Color(0xFFC62828),
-                                        icon: Icons.flag,
-                                        iconSize: 14,
-                                      ),
-                                    ),
-                                ],
-                              ),
-                              RichAttributionWidget(
-                                attributions: [
-                                  TextSourceAttribution(
-                                    kMapThemeOptions[0].attribution,
-                                  ),
-                                ],
                               ),
                             ],
                           ),
@@ -1401,54 +1452,73 @@ class _HomeActivityDetailPage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 14),
-              AppCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Activity details', style: AppTypography.headingSmall),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _detailTile(
-                            icon: Icons.schedule,
-                            label: 'Started',
-                            value: _formatDateTime(startedAt),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _detailTile(
-                            icon: Icons.flag,
-                            label: 'Ended',
-                            value: _formatDateTime(endedAt),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _detailTile(
-                            icon: Icons.local_fire_department,
-                            label: 'Calories',
-                            value: '${calories.toStringAsFixed(0)} kcal',
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _detailTile(
-                            icon: Icons.terrain,
-                            label: 'Elevation',
-                            value: '+${elevation.toStringAsFixed(0)} m',
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
+               Container(
+                 padding: const EdgeInsets.all(20),
+                 decoration: BoxDecoration(
+                   color: Colors.white,
+                   borderRadius: BorderRadius.circular(24),
+                   border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
+                   boxShadow: [
+                     BoxShadow(
+                       color: Colors.black.withValues(alpha: 0.08),
+                       blurRadius: 20,
+                       offset: const Offset(0, 4),
+                     ),
+                   ],
+                 ),
+                 child: Column(
+                   crossAxisAlignment: CrossAxisAlignment.start,
+                   children: [
+                     Text(
+                       'Details',
+                       style: AppTypography.headingSmall.copyWith(
+                         fontWeight: FontWeight.w800,
+                         color: kBrandBlack,
+                       ),
+                     ),
+                     const SizedBox(height: 14),
+                     Row(
+                       children: [
+                         Expanded(
+                           child: _detailTile(
+                             icon: Icons.schedule,
+                             label: 'Started',
+                             value: _formatDateTime(startedAt),
+                           ),
+                         ),
+                         const SizedBox(width: 12),
+                         Expanded(
+                           child: _detailTile(
+                             icon: Icons.flag,
+                             label: 'Ended',
+                             value: _formatDateTime(endedAt),
+                           ),
+                         ),
+                       ],
+                     ),
+                     const SizedBox(height: 12),
+                     Row(
+                       children: [
+                         Expanded(
+                           child: _detailTile(
+                             icon: Icons.local_fire_department,
+                             label: 'Calories',
+                             value: '${calories.toStringAsFixed(0)} kcal',
+                           ),
+                         ),
+                         const SizedBox(width: 12),
+                         Expanded(
+                           child: _detailTile(
+                             icon: Icons.terrain,
+                             label: 'Elevation',
+                             value: '+${elevation.toStringAsFixed(0)} m',
+                           ),
+                         ),
+                       ],
+                     ),
+                   ],
+                 ),
+               ),
               const SizedBox(height: 14),
               _RanTogetherSection(firestore: firestore, sessionId: sessionId),
             ],
@@ -1498,39 +1568,84 @@ class _HomeActivityDetailPage extends StatelessWidget {
     required String dateLabel,
   }) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [kBrandBlack, kBrandOrange.withValues(alpha: 0.92)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(22),
-        boxShadow: const [AppShadow.lg],
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Activity summary',
-            style: AppTypography.labelSmall.copyWith(color: Colors.white70),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Activity summary',
+                style: AppTypography.labelSmall.copyWith(
+                  color: kTextSecondary,
+                  letterSpacing: 0.3,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: kBrandOrange.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  dateLabel,
+                  style: AppTypography.labelSmall.copyWith(
+                    color: kBrandOrange,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 6),
-          Text(
-            dateLabel,
-            style: AppTypography.bodySmall.copyWith(color: Colors.white70),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            '${distanceKm.toStringAsFixed(2)} km',
-            style: AppTypography.displayMedium.copyWith(color: Colors.white),
+          const SizedBox(height: 16),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                distanceKm.toStringAsFixed(2),
+                style: AppTypography.displayMedium.copyWith(
+                  color: kBrandBlack,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 52,
+                  letterSpacing: -1,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'km',
+                style: AppTypography.headingSmall.copyWith(
+                  color: kTextSecondary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 4),
           Text(
             'Total distance',
-            style: AppTypography.bodySmall.copyWith(color: Colors.white70),
+            style: AppTypography.bodySmall.copyWith(
+              color: kTextSecondary,
+              fontSize: 12,
+            ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 20),
           Row(
             children: [
               Expanded(
@@ -1540,7 +1655,7 @@ class _HomeActivityDetailPage extends StatelessWidget {
                   value: durationLabel,
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 12),
               Expanded(
                 child: _summaryStat(
                   icon: Icons.speed,
@@ -1548,7 +1663,7 @@ class _HomeActivityDetailPage extends StatelessWidget {
                   value: paceLabel,
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 12),
               Expanded(
                 child: _summaryStat(
                   icon: Icons.bolt,
@@ -1569,34 +1684,39 @@ class _HomeActivityDetailPage extends StatelessWidget {
     required String value,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.14),
+        color: kBrandOrange.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: kBrandOrange.withValues(alpha: 0.12),
+        ),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: Colors.white),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  label,
-                  style:
-                      AppTypography.labelSmall.copyWith(color: Colors.white70),
+          Row(
+            children: [
+              Icon(icon, size: 14, color: kBrandOrange),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: AppTypography.labelSmall.copyWith(
+                  color: kTextSecondary,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: AppTypography.headingSmall.copyWith(
-                    color: Colors.white,
-                  ),
-                ),
-              ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: AppTypography.headingSmall.copyWith(
+              color: kBrandBlack,
+              fontWeight: FontWeight.w800,
+              fontSize: 12,
             ),
           ),
         ],
@@ -1626,22 +1746,36 @@ class _HomeActivityDetailPage extends StatelessWidget {
             ? 'Route too short'
             : 'Key required';
 
-    return AppCard(
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Container(
-                width: 46,
-                height: 46,
+                width: 50,
+                height: 50,
                 decoration: BoxDecoration(
                   color: kBrandOrange.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.threed_rotation_rounded,
                   color: kBrandOrange,
+                  size: 26,
                 ),
               ),
               const SizedBox(width: 12),
@@ -1649,12 +1783,20 @@ class _HomeActivityDetailPage extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('3D flyover replay', style: AppTypography.headingSmall),
+                    Text(
+                      '3D flyover replay',
+                      style: AppTypography.headingSmall.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: kBrandBlack,
+                      ),
+                    ),
                     const SizedBox(height: 4),
                     Text(
                       subtitle,
                       style: AppTypography.bodySmall.copyWith(
                         color: kTextSecondary,
+                        height: 1.3,
+                        fontSize: 12,
                       ),
                     ),
                   ],
@@ -1662,7 +1804,7 @@ class _HomeActivityDetailPage extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
@@ -1686,7 +1828,8 @@ class _HomeActivityDetailPage extends StatelessWidget {
               style: FilledButton.styleFrom(
                 backgroundColor: kBrandBlack,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
+                disabledBackgroundColor: Colors.grey.withValues(alpha: 0.2),
+                padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),
@@ -1706,43 +1849,36 @@ class _HomeActivityDetailPage extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
+        color: kBrandOrange.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(12),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: kBrandOrange.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, size: 18, color: kBrandOrange),
+          Row(
+            children: [
+              Icon(icon, size: 14, color: kBrandOrange),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: AppTypography.labelSmall.copyWith(
+                  color: kTextSecondary,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: AppTypography.labelSmall.copyWith(
-                    color: kTextSecondary,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: AppTypography.bodyMedium.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: AppTypography.bodyMedium.copyWith(
+              color: kBrandBlack,
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
             ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),

@@ -47,7 +47,7 @@ class AppCard extends StatelessWidget {
 }
 
 /// Metric card for displaying key statistics
-class MetricCard extends StatelessWidget {
+class MetricCard extends StatefulWidget {
   const MetricCard({
     super.key,
     required this.label,
@@ -66,41 +66,131 @@ class MetricCard extends StatelessWidget {
   final bool highlighted;
 
   @override
+  State<MetricCard> createState() => _MetricCardState();
+}
+
+class _MetricCardState extends State<MetricCard> {
+  bool _isHovered = false;
+
+  @override
   Widget build(BuildContext context) {
-    return AppCard(
-      onTap: onTap,
-      backgroundColor: highlighted ? kBrandOrangeLight : kSurfaceCard,
-      elevation: highlighted ? AppShadow.md : AppShadow.sm,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(AppSpacing.sm),
-                decoration: BoxDecoration(
-                  color: kBrandOrange.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(AppBorderRadius.md),
+    final accentColor = widget.highlighted ? kBrandOrange : kInfo;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: widget.onTap,
+        onHover: (isHovering) {
+          setState(() => _isHovered = isHovering);
+        },
+        borderRadius: BorderRadius.circular(18),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: widget.highlighted
+                  ? [
+                      kBrandOrange.withValues(alpha: 0.12),
+                      kBrandOrange.withValues(alpha: 0.06),
+                    ]
+                  : [
+                      Colors.white,
+                      Colors.white.withValues(alpha: 0.96),
+                    ],
+            ),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: accentColor.withValues(alpha: _isHovered ? 0.3 : 0.12),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: accentColor.withValues(
+                  alpha: _isHovered ? 0.15 : 0.08,
                 ),
-                child: Icon(icon, color: kBrandOrange, size: 18),
+                blurRadius: _isHovered ? 20 : 12,
+                offset: _isHovered ? const Offset(0, 8) : const Offset(0, 4),
               ),
-              const SizedBox(width: AppSpacing.md),
-              Text(label, style: AppTypography.labelSmall),
             ],
           ),
-          const SizedBox(height: AppSpacing.md),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(value, style: AppTypography.headingMedium),
-              if (unit.isNotEmpty) ...[
-                const SizedBox(width: AppSpacing.sm),
-                Text(unit, style: AppTypography.labelSmall),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            accentColor.withValues(alpha: 0.18),
+                            accentColor.withValues(alpha: 0.08),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: accentColor.withValues(alpha: 0.1),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        widget.icon,
+                        color: accentColor,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        widget.label,
+                        style: AppTypography.labelSmall.copyWith(
+                          color: Colors.black.withValues(alpha: 0.6),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        widget.value,
+                        style: AppTypography.headingMedium.copyWith(
+                          fontWeight: FontWeight.w900,
+                          color: widget.highlighted
+                              ? kBrandOrange
+                              : Colors.black.withValues(alpha: 0.9),
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                    ),
+                    if (widget.unit.isNotEmpty) ...[
+                      const SizedBox(width: 6),
+                      Text(
+                        widget.unit,
+                        style: AppTypography.labelSmall.copyWith(
+                          color: Colors.black.withValues(alpha: 0.5),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ],
-            ],
+            ),
           ),
-        ],
+        ),
       ),
     );
   }
