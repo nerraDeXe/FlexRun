@@ -368,10 +368,20 @@ class ActivityFeedCard extends StatelessWidget {
     required CollectionReference<Map<String, dynamic>> likesCollection,
     VoidCallback? onExerciseListChanged,
   }) {
-    final title = isMine ? 'You' : '@$actorUsername';
-    final subtitle = actorDisplayName != null && actorDisplayName.isNotEmpty
-        ? '$actorDisplayName · $startedLabel'
-        : startedLabel;
+    final String title;
+    final String subtitle;
+    if (isMine) {
+      title = 'You';
+      subtitle = actorUsername.isNotEmpty
+          ? '@$actorUsername · $startedLabel'
+          : startedLabel;
+    } else if (actorDisplayName != null && actorDisplayName.isNotEmpty) {
+      title = actorDisplayName;
+      subtitle = '@$actorUsername · $startedLabel';
+    } else {
+      title = '@$actorUsername';
+      subtitle = startedLabel;
+    }
 
     final paceLabel = durationSeconds > 0 && distanceKm > 0
         ? () {
