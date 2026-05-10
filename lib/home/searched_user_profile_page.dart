@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'package:fake_strava/core/theme.dart';
 import 'package:fake_strava/home/social_repository.dart';
-import 'package:fake_strava/home/home_page.dart';
+import 'package:fake_strava/tracking/widgets/activity_feed_card.dart';
 
 class SearchedUserProfilePage extends StatefulWidget {
   const SearchedUserProfilePage({

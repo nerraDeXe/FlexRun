@@ -1,6 +1,6 @@
 {
-    "name": "fake_strava",
-    "short_name": "fake_strava",
+    "name": "FlexRun",
+    "short_name": "FlexRun",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

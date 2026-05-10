@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -20,6 +21,85 @@ import 'package:fake_strava/tracking/services/concurrent_runner_service.dart';
 import 'package:fake_strava/core/theme.dart';
 import 'package:fake_strava/core/ui_components.dart';
 import 'package:fake_strava/core/utils.dart';
+
+const double _kTrackingPanelHandleExtent = 44.0;
+
+class _TrackingPanelDragHeaderDelegate extends SliverPersistentHeaderDelegate {
+  _TrackingPanelDragHeaderDelegate({
+    required this.collapsed,
+    required this.onToggle,
+    required this.onDragStart,
+    required this.onDragUpdate,
+    required this.onDragEnd,
+  });
+
+  final bool collapsed;
+  final VoidCallback onToggle;
+  final GestureDragStartCallback onDragStart;
+  final GestureDragUpdateCallback onDragUpdate;
+  final GestureDragEndCallback onDragEnd;
+
+  @override
+  double get minExtent => _kTrackingPanelHandleExtent;
+
+  @override
+  double get maxExtent => _kTrackingPanelHandleExtent;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return Material(
+      color: const Color(0xFFFDFDFE),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onToggle,
+        onVerticalDragStart: onDragStart,
+        onVerticalDragUpdate: onDragUpdate,
+        onVerticalDragEnd: onDragEnd,
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 56,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        kBrandOrange.withValues(alpha: 0.35),
+                        kBrandOrange.withValues(alpha: 0.12),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Icon(
+                  collapsed
+                      ? Icons.keyboard_arrow_up_rounded
+                      : Icons.keyboard_arrow_down_rounded,
+                  size: 22,
+                  color: kBrandOrange.withValues(alpha: 0.65),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _TrackingPanelDragHeaderDelegate oldDelegate) {
+    return oldDelegate.collapsed != collapsed;
+  }
+}
 
 class TrackingHomePage extends StatefulWidget {
   const TrackingHomePage({super.key, required this.displayName});
@@ -74,6 +154,9 @@ class _TrackingHomePageState extends State<TrackingHomePage>
   LatLng? _lastTrackedPoint;
   LatLng _mapCenter = _defaultCenter;
   double _mapZoom = 15.5;
+  BoxConstraints? _panelLayoutConstraints;
+  double _panelLayoutTopInset = 0;
+  double _panelLayoutBottomInset = 0;
   int _mapThemeIndex = 0;
   int _currentHeartRate = 0;
   final List<int> _heartRateReadings = <int>[];
@@ -91,7 +174,6 @@ class _TrackingHomePageState extends State<TrackingHomePage>
       duration: const Duration(milliseconds: 300),
       value: 1.0,
     );
-    _panelController.addListener(() => setState(() {}));
     _hydrateState();
     _startForegroundPointerStream();
     _setupVoicePace();
@@ -246,8 +328,8 @@ class _TrackingHomePageState extends State<TrackingHomePage>
   }
 
   void _capturePoint(TrackingSnapshot snapshot) {
-    final latitude = snapshot.latitude;
-    final longitude = snapshot.longitude;
+    final latitude = sanitizeLatitude(snapshot.latitude);
+    final longitude = sanitizeLongitude(snapshot.longitude);
     if (latitude == null || longitude == null) {
       return;
     }
@@ -333,6 +415,9 @@ class _TrackingHomePageState extends State<TrackingHomePage>
     if (!mounted) {
       return;
     }
+    if (!isValidWgs84(position.latitude, position.longitude)) {
+      return;
+    }
     final point = LatLng(position.latitude, position.longitude);
     final shouldCenterNow = !_hasCenteredOnLiveLocation;
     setState(() {
@@ -348,9 +433,34 @@ class _TrackingHomePageState extends State<TrackingHomePage>
     });
     if (_followUserLocation || shouldCenterNow) {
       _mapCenter = point;
-      _mapController.move(_mapCenter, _mapZoom);
+      _mapController.move(
+        point,
+        _mapZoom,
+        offset: _userFollowMapOffset(),
+      );
     }
     _updatePreviewDistance(point, position.accuracy);
+  }
+
+  /// Nudge the focused location upward so it sits nearer the middle of the map
+  /// visible above the run sheet (see [MapController.move] `offset`).
+  Offset _userFollowMapOffset() {
+    var obscured = _obscuredMapBottomLogicalPx;
+    if (obscured <= 0 && mounted) {
+      const collapsedPanelHeight = 248.0;
+      final bottomInset = MediaQuery.paddingOf(context).bottom;
+      const actionBarVerticalPadding = 10.0;
+      const actionBarButtonHeight = 52.0;
+      obscured =
+          collapsedPanelHeight +
+          bottomInset +
+          actionBarVerticalPadding * 2 +
+          actionBarButtonHeight;
+    }
+    if (obscured <= 0) {
+      return Offset.zero;
+    }
+    return Offset(0, -obscured * 0.5);
   }
 
   LocationSettings _buildLocationSettings() {
@@ -368,7 +478,15 @@ class _TrackingHomePageState extends State<TrackingHomePage>
 
   void _zoomMap(double delta) {
     final nextZoom = (_mapZoom + delta).clamp(3.0, 18.0).toDouble();
-    _mapController.move(_mapCenter, nextZoom);
+    if (_followUserLocation && _currentPosition != null) {
+      _mapController.move(
+        _currentPosition!,
+        nextZoom,
+        offset: _userFollowMapOffset(),
+      );
+    } else {
+      _mapController.move(_mapCenter, nextZoom);
+    }
   }
 
   void _recenterToUser() {
@@ -380,7 +498,11 @@ class _TrackingHomePageState extends State<TrackingHomePage>
       _followUserLocation = true;
       _mapCenter = point;
     });
-    _mapController.move(_mapCenter, _mapZoom);
+    _mapController.move(
+      point,
+      _mapZoom,
+      offset: _userFollowMapOffset(),
+    );
   }
 
   void _updatePreviewDistance(LatLng current, double accuracyMeters) {
@@ -525,16 +647,19 @@ class _TrackingHomePageState extends State<TrackingHomePage>
     List<LatLng> points,
     int totalDurationSeconds,
   ) {
-    if (points.length < 2) return [];
+    final usable = points
+        .where((p) => isValidWgs84(p.latitude, p.longitude))
+        .toList(growable: false);
+    if (usable.length < 2) return [];
 
     final polylines = <Polyline>[];
     final segmentDurationMs = totalDurationSeconds > 0
-        ? (totalDurationSeconds * 1000) ~/ (points.length - 1)
+        ? (totalDurationSeconds * 1000) ~/ (usable.length - 1)
         : 1000; // Default 1 second per segment if no time elapsed
 
-    for (int i = 0; i < points.length - 1; i++) {
-      final start = points[i];
-      final end = points[i + 1];
+    for (int i = 0; i < usable.length - 1; i++) {
+      final start = usable[i];
+      final end = usable[i + 1];
       final speed = _calculateSpeed(start, end, segmentDurationMs);
       final color = _getSpeedColor(speed);
 
@@ -965,6 +1090,44 @@ class _TrackingHomePageState extends State<TrackingHomePage>
     }
   }
 
+  void _syncPanelLayoutFrom(BoxConstraints constraints, BuildContext context) {
+    _panelLayoutConstraints = constraints;
+    _panelLayoutTopInset = MediaQuery.paddingOf(context).top;
+    _panelLayoutBottomInset = MediaQuery.paddingOf(context).bottom;
+  }
+
+  /// Panel height and bottom chrome height for the tracking action bar.
+  (double panelHeight, double trackingBottomChromeHeight)
+      _resolvePanelGeometry() {
+    const collapsedPanelHeight = 248.0;
+    const actionBarVerticalPadding = 10.0;
+    const actionBarButtonHeight = 52.0;
+    final constraints = _panelLayoutConstraints;
+    final topInset = _panelLayoutTopInset;
+    final bottomInset = _panelLayoutBottomInset;
+    final trackingBottomChromeHeight =
+        bottomInset + actionBarVerticalPadding * 2 + actionBarButtonHeight;
+    if (constraints == null) {
+      return (collapsedPanelHeight, trackingBottomChromeHeight);
+    }
+    final expandedPanelHeight = math.max(
+      collapsedPanelHeight,
+      constraints.maxHeight - topInset - 16 - trackingBottomChromeHeight,
+    );
+    final panelHeight = lerpDouble(
+      collapsedPanelHeight,
+      expandedPanelHeight,
+      _panelController.value,
+    )!;
+    return (panelHeight, trackingBottomChromeHeight);
+  }
+
+  /// Run card + bottom controls (logical px); uses live [_panelController] value.
+  double get _obscuredMapBottomLogicalPx {
+    final (panelHeight, chrome) = _resolvePanelGeometry();
+    return panelHeight + chrome;
+  }
+
   Future<void> _showHRDeviceSelector() async {
     final permitted = await _hrService.requestPermissions();
     if (!permitted) {
@@ -1086,341 +1249,451 @@ class _TrackingHomePageState extends State<TrackingHomePage>
     );
   }
 
+  /// Start / Pause / Finish — used in a floating bar above the stats sheet.
+  Widget _buildFloatingTrackingControls() {
+    return Row(
+      children: [
+        Expanded(
+          child: Semantics(
+            button: true,
+            enabled: !(kIsWeb || _isTracking || _isStarting),
+            label: 'Start workout',
+            hint: 'Starts recording your workout',
+            child: Tooltip(
+              message: kIsWeb || _isTracking || _isStarting
+                  ? 'Start unavailable'
+                  : 'Start workout',
+              child: FilledButton.icon(
+                onPressed: kIsWeb || _isTracking || _isStarting
+                    ? null
+                    : _handleStart,
+                icon: const Icon(Icons.play_arrow_rounded),
+                label: Text(
+                  _isStarting ? 'Starting...' : 'Start',
+                ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: kBrandOrange,
+                  foregroundColor: Colors.white,
+                  elevation: 2,
+                  minimumSize: const Size.fromHeight(52),
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  textStyle: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Semantics(
+            button: true,
+            enabled:
+                !kIsWeb && _isTracking && !_isPausing && !_isResuming,
+            label: _isManuallyPaused ? 'Resume workout' : 'Pause workout',
+            hint: _isManuallyPaused
+                ? 'Resumes a paused workout'
+                : 'Pauses the current workout',
+            child: Tooltip(
+              message: _isManuallyPaused ? 'Resume' : 'Pause',
+              child: OutlinedButton.icon(
+                onPressed: !kIsWeb &&
+                        _isTracking &&
+                        !_isPausing &&
+                        !_isResuming
+                    ? _handlePauseResume
+                    : null,
+                icon: Icon(
+                  _isManuallyPaused
+                      ? Icons.play_arrow_rounded
+                      : Icons.pause_rounded,
+                ),
+                label: Text(
+                  _isManuallyPaused
+                      ? (_isResuming ? 'Resuming...' : 'Resume')
+                      : (_isPausing ? 'Pausing...' : 'Pause'),
+                ),
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  minimumSize: const Size.fromHeight(52),
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  foregroundColor: kBrandBlack,
+                  elevation: 0,
+                  side: BorderSide(
+                    color: Colors.black.withValues(alpha: 0.12),
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  textStyle: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Semantics(
+            button: true,
+            enabled: _canHoldToFinish,
+            label: 'Finish workout',
+            hint: 'Press and hold for three seconds to save workout',
+            child: Tooltip(
+              message: 'Press and hold to finish',
+              child: Listener(
+                behavior: HitTestBehavior.opaque,
+                onPointerDown:
+                    _canHoldToFinish ? (_) => _startFinishHold() : null,
+                onPointerUp: (_) => _cancelFinishHold(),
+                onPointerCancel: (_) => _cancelFinishHold(),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Container(
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF20242E),
+                        borderRadius: BorderRadius.circular(14),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.18),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Positioned.fill(
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: FractionallySizedBox(
+                          widthFactor: _finishHoldProgress,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: kBrandOrange.withValues(alpha: 0.9),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          _isFinishing
+                              ? Icons.check_circle
+                              : Icons.stop_rounded,
+                          color: Colors.white,
+                          size: 17,
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          _isFinishing
+                              ? 'Saving...'
+                              : _finishHoldProgress > 0
+                                  ? 'Hold ${(3 - (_finishHoldProgress * 3)).ceil().clamp(1, 3)}s'
+                                  : 'Finish',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final pace = _paceMinPerKm();
     final displayedDistanceKm = _displayDistanceKm();
     final activeMapTheme = kMapThemeOptions[_mapThemeIndex];
     final avgSpeedKmh = pace > 0 ? 60 / pace : 0.0;
-    final bottomInset = MediaQuery.paddingOf(context).bottom;
-    final mapControlsBottom =
-        (340.0 + (30.0 * _panelController.value)) + bottomInset;
-    return Scaffold(
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: FlutterMap(
-              mapController: _mapController,
-              options: MapOptions(
-                initialCenter: _mapCenter,
-                initialZoom: _mapZoom,
-                onPositionChanged: (position, hasGesture) {
-                  _mapCenter = position.center;
-                  _mapZoom = position.zoom;
-                  if (hasGesture) {
-                    _followUserLocation = false;
-                  }
-                },
-              ),
-              children: [
-                TileLayer(
-                  urlTemplate: activeMapTheme.urlTemplate,
-                  subdomains: activeMapTheme.subdomains,
-                  userAgentPackageName: 'com.company.fakestrava',
-                ),
-                if (_routePoints.length >= 2)
-                  PolylineLayer(
-                    polylines: _buildSpeedGradientPolylines(
-                      _routePoints,
-                      _activeElapsedSeconds(),
-                    ),
-                  ),
-                if (_currentPosition != null)
-                  MarkerLayer(
-                    markers: [
-                      Marker(
-                        point: _currentPosition!,
-                        width: 34,
-                        height: 34,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: kBrandOrange,
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: Colors.white, width: 3),
-                          ),
-                          child: const Icon(
-                            Icons.navigation,
-                            color: Colors.white,
-                            size: 16,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                RichAttributionWidget(
-                  attributions: [
-                    TextSourceAttribution(activeMapTheme.attribution),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          Positioned.fill(
-            child: IgnorePointer(
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.transparent,
-                      Colors.black.withValues(alpha: 0.06),
-                      Colors.transparent,
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-              child: Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        _syncPanelLayoutFrom(constraints, context);
+
+        return Scaffold(
+          body: AnimatedBuilder(
+            animation: _panelController,
+            builder: (context, mapLayer) {
+              final (panelHeight, trackingBottomChromeHeight) =
+                  _resolvePanelGeometry();
+              final mapControlsBottom =
+                  panelHeight + trackingBottomChromeHeight + 12;
+              return Stack(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
-                    ),
+                  mapLayer!,
+                  Positioned.fill(
+                child: IgnorePointer(
+                  child: Container(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
                         colors: [
-                          Colors.black.withValues(alpha: 0.62),
-                          Colors.black.withValues(alpha: 0.48),
+                          Colors.transparent,
+                          Colors.black.withValues(alpha: 0.06),
+                          Colors.transparent,
                         ],
                       ),
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.25),
-                        width: 1.2,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.3),
-                          blurRadius: 16,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 10,
-                          height: 10,
-                          decoration: BoxDecoration(
-                            color: _trackingStatusColor,
-                            borderRadius: BorderRadius.circular(99),
-                            boxShadow: [
-                              BoxShadow(
-                                color: _trackingStatusColor.withValues(alpha: 0.4),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
+                  ),
+                ),
+              ),
+              SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.black.withValues(alpha: 0.62),
+                              Colors.black.withValues(alpha: 0.48),
                             ],
                           ),
-                        ),
-                        const SizedBox(width: 10),
-                        Text(
-                          _trackingStatusLabel,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                            fontSize: 14,
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.25),
+                            width: 1.2,
                           ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.3),
+                              blurRadius: 16,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  const Spacer(),
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.black.withValues(alpha: 0.48),
-                          Colors.black.withValues(alpha: 0.36),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.2),
-                        width: 1.2,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.24),
-                          blurRadius: 18,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _buildIconGlassButton(
-                          icon: _voicePaceEnabled
-                              ? Icons.volume_up
-                              : Icons.volume_off,
-                          onTap: () {
-                            setState(
-                              () => _voicePaceEnabled = !_voicePaceEnabled,
-                            );
-                          },
-                          active: _voicePaceEnabled,
-                          tooltip: _voicePaceEnabled
-                              ? 'Disable voice pace'
-                              : 'Enable voice pace',
-                        ),
-                        const SizedBox(width: 4),
-                        _buildIconGlassButton(
-                          icon: Icons.layers_outlined,
-                          onTap: _cycleMapTheme,
-                          tooltip: 'Map style: ${activeMapTheme.label}',
-                        ),
-                        const SizedBox(width: 4),
-                        _buildIconGlassButton(
-                          icon: Icons.favorite,
-                          onTap: _showHRDeviceSelector,
-                          tooltip: _hrService.isConnected
-                              ? 'HR Monitor Connected'
-                              : 'Connect HR Monitor',
-                          active: _hrService.isConnected,
-                        ),
-                        const SizedBox(width: 4),
-                        _buildIconGlassButton(
-                          icon: _ghostMode
-                              ? Icons.visibility_off
-                              : Icons.visibility,
-                          onTap: _toggleGhostMode,
-                          tooltip: _ghostMode
-                              ? 'Ghost mode on'
-                              : 'Ghost mode off',
-                          active: _ghostMode,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          Positioned(
-            right: 14,
-            bottom: mapControlsBottom,
-            child: IgnorePointer(
-              ignoring: _panelController.value > 0.5,
-              child: FadeTransition(
-                opacity: ReverseAnimation(_panelController),
-                child: Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.40),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.16),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.2),
-                        blurRadius: 14,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      _buildIconGlassButton(
-                        icon: Icons.my_location,
-                        onTap: _recenterToUser,
-                        active: _followUserLocation,
-                        tooltip: 'Center on location',
-                      ),
-                      const SizedBox(height: 8),
-                      _buildIconGlassButton(
-                        icon: Icons.add,
-                        onTap: () => _zoomMap(1),
-                        tooltip: 'Zoom in',
-                      ),
-                      const SizedBox(height: 8),
-                      _buildIconGlassButton(
-                        icon: Icons.remove,
-                        onTap: () => _zoomMap(-1),
-                        tooltip: 'Zoom out',
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onVerticalDragStart: _onPanelDragStart,
-              onVerticalDragUpdate: _onPanelDragUpdate,
-              onVerticalDragEnd: _onPanelDragEnd,
-              child: Container(
-                width: double.infinity,
-                padding: EdgeInsets.fromLTRB(14, 14, 14, 14 + bottomInset),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      const Color(0xFFFDFDFE),
-                      const Color(0xFFF5F7FC),
-                    ],
-                  ),
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(36),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.12),
-                      blurRadius: 32,
-                      offset: const Offset(0, -8),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    GestureDetector(
-                      onTap: _togglePanelCollapse,
-                      child: Center(
-                        child: Column(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             Container(
-                              width: 48,
-                              height: 5,
+                              width: 10,
+                              height: 10,
                               decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    kBrandOrange.withValues(alpha: 0.3),
-                                    kBrandOrange.withValues(alpha: 0.1),
-                                  ],
-                                ),
-                                borderRadius: BorderRadius.circular(999),
+                                color: _trackingStatusColor,
+                                borderRadius: BorderRadius.circular(99),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: _trackingStatusColor.withValues(
+                                      alpha: 0.4,
+                                    ),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
                               ),
                             ),
-                            const SizedBox(height: 6),
-                            Icon(
-                              _isPanelCollapsed
-                                  ? Icons.keyboard_arrow_up_rounded
-                                  : Icons.keyboard_arrow_down_rounded,
-                              size: 20,
-                              color: kBrandOrange.withValues(alpha: 0.6),
+                            const SizedBox(width: 10),
+                            Text(
+                              _trackingStatusLabel,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                                fontSize: 14,
+                              ),
                             ),
                           ],
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
+                      const SizedBox(width: 12),
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.black.withValues(alpha: 0.48),
+                              Colors.black.withValues(alpha: 0.36),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            width: 1.2,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.24),
+                              blurRadius: 18,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _buildIconGlassButton(
+                              icon: _voicePaceEnabled
+                                  ? Icons.volume_up
+                                  : Icons.volume_off,
+                              onTap: () {
+                                setState(
+                                  () => _voicePaceEnabled = !_voicePaceEnabled,
+                                );
+                              },
+                              active: _voicePaceEnabled,
+                              tooltip: _voicePaceEnabled
+                                  ? 'Disable voice pace'
+                                  : 'Enable voice pace',
+                            ),
+                            const SizedBox(width: 4),
+                            _buildIconGlassButton(
+                              icon: Icons.layers_outlined,
+                              onTap: _cycleMapTheme,
+                              tooltip: 'Map style: ${activeMapTheme.label}',
+                            ),
+                            const SizedBox(width: 4),
+                            _buildIconGlassButton(
+                              icon: Icons.favorite,
+                              onTap: _showHRDeviceSelector,
+                              tooltip: _hrService.isConnected
+                                  ? 'HR Monitor Connected'
+                                  : 'Connect HR Monitor',
+                              active: _hrService.isConnected,
+                            ),
+                            const SizedBox(width: 4),
+                            _buildIconGlassButton(
+                              icon: _ghostMode
+                                  ? Icons.visibility_off
+                                  : Icons.visibility,
+                              onTap: _toggleGhostMode,
+                              tooltip: _ghostMode
+                                  ? 'Ghost mode on'
+                                  : 'Ghost mode off',
+                              active: _ghostMode,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Positioned(
+                right: 14,
+                bottom: mapControlsBottom,
+                          child: IgnorePointer(
+                            ignoring: _panelController.value > 0.5,
+                            child: FadeTransition(
+                              opacity: ReverseAnimation(_panelController),
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.40),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: Colors.white.withValues(alpha: 0.16),
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(alpha: 0.2),
+                                      blurRadius: 14,
+                                      offset: const Offset(0, 6),
+                                    ),
+                                  ],
+                                ),
+                                child: Column(
+                                  children: [
+                                    _buildIconGlassButton(
+                                      icon: Icons.my_location,
+                                      onTap: _recenterToUser,
+                                      active: _followUserLocation,
+                                      tooltip: 'Center on location',
+                                    ),
+                                    const SizedBox(height: 8),
+                                    _buildIconGlassButton(
+                                      icon: Icons.add,
+                                      onTap: () => _zoomMap(1),
+                                      tooltip: 'Zoom in',
+                                    ),
+                                    const SizedBox(height: 8),
+                                    _buildIconGlassButton(
+                                      icon: Icons.remove,
+                                      onTap: () => _zoomMap(-1),
+                                      tooltip: 'Zoom out',
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+              ),
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      height: panelHeight,
+                      width: double.infinity,
+                      padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            const Color(0xFFFDFDFE),
+                            const Color(0xFFF5F7FC),
+                          ],
+                        ),
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(36),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.12),
+                            blurRadius: 32,
+                            offset: const Offset(0, -8),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        children: [
+                          Expanded(
+                            child: CustomScrollView(
+                              physics: const ClampingScrollPhysics(),
+                              slivers: [
+                                SliverPersistentHeader(
+                                  pinned: true,
+                                  delegate: _TrackingPanelDragHeaderDelegate(
+                                    collapsed: _isPanelCollapsed,
+                                    onToggle: _togglePanelCollapse,
+                                    onDragStart: _onPanelDragStart,
+                                    onDragUpdate: _onPanelDragUpdate,
+                                    onDragEnd: _onPanelDragEnd,
+                                  ),
+                                ),
+                                SliverToBoxAdapter(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
                       children: [
                         Expanded(
                           child: Text(
@@ -1641,208 +1914,149 @@ class _TrackingHomePageState extends State<TrackingHomePage>
                         ],
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Semantics(
-                            button: true,
-                            enabled: !(kIsWeb || _isTracking || _isStarting),
-                            label: 'Start workout',
-                            hint: 'Starts recording your workout',
-                            child: Tooltip(
-                              message: kIsWeb || _isTracking || _isStarting
-                                  ? 'Start unavailable'
-                                  : 'Start workout',
-                              child: FilledButton.icon(
-                                onPressed: kIsWeb || _isTracking || _isStarting
-                                    ? null
-                                    : _handleStart,
-                                icon: const Icon(Icons.play_arrow_rounded),
-                                label: Text(
-                                  _isStarting ? 'Starting...' : 'Start',
-                                ),
-                                style: FilledButton.styleFrom(
-                                  backgroundColor: kBrandOrange,
-                                  foregroundColor: Colors.white,
-                                  elevation: 4,
-                                  minimumSize: const Size.fromHeight(56),
-                                  textStyle: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16),
+                              if (kIsWeb) ...[
+                                const SizedBox(height: 8),
+                                const Text(
+                                  'Tracking is disabled on web. Use Android/iOS for live GPS.',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.black54,
                                   ),
                                 ),
-                              ),
-                            ),
+                              ] else if (_locationStatus != null) ...[
+                                const SizedBox(height: 8),
+                                Text(
+                                  _locationStatus!,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.black54,
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Semantics(
-                            button: true,
-                            enabled:
-                                !kIsWeb &&
-                                _isTracking &&
-                                !_isPausing &&
-                                !_isResuming,
-                            label: _isManuallyPaused
-                                ? 'Resume workout'
-                                : 'Pause workout',
-                            hint: _isManuallyPaused
-                                ? 'Resumes a paused workout'
-                                : 'Pauses the current workout',
-                            child: Tooltip(
-                              message: _isManuallyPaused ? 'Resume' : 'Pause',
-                              child: OutlinedButton.icon(
-                                onPressed:
-                                    !kIsWeb &&
-                                        _isTracking &&
-                                        !_isPausing &&
-                                        !_isResuming
-                                    ? _handlePauseResume
-                                    : null,
-                                icon: Icon(
-                                  _isManuallyPaused
-                                      ? Icons.play_arrow_rounded
-                                      : Icons.pause_rounded,
-                                ),
-                                label: Text(
-                                  _isManuallyPaused
-                                      ? (_isResuming ? 'Resuming...' : 'Resume')
-                                      : (_isPausing ? 'Pausing...' : 'Pause'),
-                                ),
-                                style: OutlinedButton.styleFrom(
-                                  backgroundColor: Colors.white,
-                                  minimumSize: const Size.fromHeight(56),
-                                  foregroundColor: kBrandBlack,
-                                  elevation: 0,
-                                  side: BorderSide(
-                                    color: Colors.black.withValues(alpha: 0.12),
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  textStyle: const TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                            ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+                    Container(
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.12),
+                            blurRadius: 20,
+                            offset: const Offset(0, -6),
+                          ),
+                        ],
+                        border: Border(
+                          top: BorderSide(
+                            color: Colors.black.withValues(alpha: 0.08),
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Semantics(
-                            button: true,
-                            enabled: _canHoldToFinish,
-                            label: 'Finish workout',
-                            hint:
-                                'Press and hold for three seconds to save workout',
-                            child: Tooltip(
-                              message: 'Press and hold to finish',
-                              child: Listener(
-                                behavior: HitTestBehavior.opaque,
-                                onPointerDown: _canHoldToFinish
-                                    ? (_) => _startFinishHold()
-                                    : null,
-                                onPointerUp: (_) => _cancelFinishHold(),
-                                onPointerCancel: (_) => _cancelFinishHold(),
-                                child: Stack(
-                                  alignment: Alignment.center,
-                                  children: [
-                                    Container(
-                                      height: 56,
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFF20242E),
-                                        borderRadius: BorderRadius.circular(16),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.black.withValues(
-                                              alpha: 0.22,
-                                            ),
-                                            blurRadius: 12,
-                                            offset: const Offset(0, 5),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    Positioned.fill(
-                                      child: Align(
-                                        alignment: Alignment.centerLeft,
-                                        child: FractionallySizedBox(
-                                          widthFactor: _finishHoldProgress,
-                                          child: Container(
-                                            decoration: BoxDecoration(
-                                              color: kBrandOrange.withValues(
-                                                alpha: 0.9,
-                                              ),
-                                              borderRadius:
-                                                  BorderRadius.circular(16),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Icon(
-                                          _isFinishing
-                                              ? Icons.check_circle
-                                              : Icons.stop_rounded,
-                                          color: Colors.white,
-                                          size: 18,
-                                        ),
-                                        const SizedBox(width: 6),
-                                        Text(
-                                          _isFinishing
-                                              ? 'Saving...'
-                                              : _finishHoldProgress > 0
-                                              ? 'Hold ${(3 - (_finishHoldProgress * 3)).ceil().clamp(1, 3)}s'
-                                              : 'Finish',
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
+                      ),
+                      child: SafeArea(
+                        top: false,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+                          child: _buildFloatingTrackingControls(),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+            },
+            child: Positioned.fill(
+              child: FlutterMap(
+                mapController: _mapController,
+                options: MapOptions(
+                  initialCenter: _mapCenter,
+                  initialZoom: _mapZoom,
+                  // Constrain zoom to the range standard raster tiles
+                  // support. Without these, pinch-zooming past ~zoom 22 or
+                  // below ~zoom 1 can push flutter_map's projection math
+                  // into NaN territory mid-gesture and crash the map with
+                  // "LatLng is not finite".
+                  minZoom: 2,
+                  maxZoom: 19,
+                  // Keep the camera inside the WGS84 world so users can't
+                  // pan into the projection's singular regions near the
+                  // poles (web mercator diverges past ±85.0511°).
+                  cameraConstraint: CameraConstraint.contain(
+                    bounds: LatLngBounds(
+                      const LatLng(-85, -180),
+                      const LatLng(85, 180),
+                    ),
+                  ),
+                  onPositionChanged: (position, hasGesture) {
+                    _mapCenter = position.center;
+                    _mapZoom = position.zoom;
+                    if (hasGesture) {
+                      _followUserLocation = false;
+                    }
+                  },
+                ),
+                children: [
+                  TileLayer(
+                    urlTemplate: activeMapTheme.urlTemplate,
+                    subdomains: activeMapTheme.subdomains,
+                    userAgentPackageName: 'com.company.fakestrava',
+                    retinaMode: RetinaMode.isHighDensity(context),
+                  ),
+                  if (_routePoints.length >= 2)
+                    PolylineLayer(
+                      polylines: _buildSpeedGradientPolylines(
+                        _routePoints,
+                        _activeElapsedSeconds(),
+                      ),
+                    ),
+                  if (_currentPosition != null &&
+                      isValidWgs84(
+                        _currentPosition!.latitude,
+                        _currentPosition!.longitude,
+                      ))
+                    MarkerLayer(
+                      markers: [
+                        Marker(
+                          point: _currentPosition!,
+                          width: 34,
+                          height: 34,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: kBrandOrange,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: Colors.white,
+                                width: 3,
                               ),
+                            ),
+                            child: const Icon(
+                              Icons.navigation,
+                              color: Colors.white,
+                              size: 16,
                             ),
                           ),
                         ),
                       ],
                     ),
-                    if (kIsWeb) ...[
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Tracking is disabled on web. Use Android/iOS for live GPS.',
-                        style: TextStyle(fontSize: 12, color: Colors.black54),
-                      ),
-                    ] else if (_locationStatus != null) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        _locationStatus!,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.black54,
-                        ),
-                      ),
+                  RichAttributionWidget(
+                    attributions: [
+                      TextSourceAttribution(activeMapTheme.attribution),
                     ],
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

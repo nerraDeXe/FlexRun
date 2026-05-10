@@ -2,11 +2,17 @@ import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import 'package:fake_strava/core/theme.dart';
 import 'package:fake_strava/core/utils.dart';
 
+/// Wordmark shown at the top of the login card. Replace the file under
+/// `assets/branding/` (see `assets/branding/README.txt`).
+const String kLoginWordmarkAsset = 'assets/branding/login_wordmark.svg';
 
+/// to make the SVG bigger or smaller.
+const double kLoginWordmarkHeight = 72;
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -175,8 +181,24 @@ class _LoginPageState extends State<LoginPage> {
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.95),
                     borderRadius: BorderRadius.circular(24),
-                    boxShadow: const [
+                    border: Border.all(
+                      color: kBrandOrange.withValues(alpha: 0.14),
+                      width: 1.2,
+                    ),
+                    boxShadow: [
                       BoxShadow(
+                        color: kBrandOrange.withValues(alpha: 0.32),
+                        blurRadius: 32,
+                        spreadRadius: -2,
+                        offset: const Offset(0, 10),
+                      ),
+                      BoxShadow(
+                        color: kBrandOrange.withValues(alpha: 0.14),
+                        blurRadius: 48,
+                        spreadRadius: -4,
+                        offset: const Offset(0, 14),
+                      ),
+                      const BoxShadow(
                         color: Color(0x33000000),
                         blurRadius: 24,
                         offset: Offset(0, 10),
@@ -187,36 +209,32 @@ class _LoginPageState extends State<LoginPage> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: kBrandOrange.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: const Text(
-                          'FAKESTRAVA',
-                          style: TextStyle(
-                            color: kBrandOrange,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.8,
-                          ),
+                      SizedBox(
+                        height: kLoginWordmarkHeight,
+                        width: double.infinity,
+                        child: SvgPicture.asset(
+                          kLoginWordmarkAsset,
+                          fit: BoxFit.contain,
+                          alignment: Alignment.center,
+                          semanticsLabel: 'FlexRun',
                         ),
                       ),
                       const SizedBox(height: 14),
-                      Text(
-                        _isCreateAccount ? 'Create Account' : 'Welcome Back',
-                        style: Theme.of(context).textTheme.headlineSmall
-                            ?.copyWith(fontWeight: FontWeight.w800),
+                      Center(
+                        child: Text(
+                          _isCreateAccount ? 'Create Account' : 'Welcome Back',
+                          style: Theme.of(context).textTheme.headlineSmall
+                              ?.copyWith(fontWeight: FontWeight.w800),
+                        ),
                       ),
                       const SizedBox(height: 6),
-                      Text(
-                        _isCreateAccount
-                            ? 'Sign up with email and password.'
-                            : 'Sign in with Firebase Authentication.',
-                        style: const TextStyle(color: Colors.black54),
+                      Center(
+                        child: Text(
+                          _isCreateAccount
+                              ? 'Sign up with email and password.'
+                              : 'Sign in with Firebase Authentication.',
+                          style: const TextStyle(color: Colors.black54),
+                        ),
                       ),
                       const SizedBox(height: 18),
                       if (_isCreateAccount)
@@ -302,6 +320,12 @@ class _LoginPageState extends State<LoginPage> {
                         style: FilledButton.styleFrom(
                           minimumSize: const Size.fromHeight(48),
                           backgroundColor: kBrandOrange,
+                          elevation: 8,
+                          shadowColor: kBrandOrange.withValues(alpha: 0.55),
+                          side: BorderSide(
+                            color: kBrandOrange.withValues(alpha: 0.85),
+                            width: 1.2,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 8),

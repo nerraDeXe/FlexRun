@@ -5,7 +5,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
 import 'package:fake_strava/core/theme.dart';
-import 'package:fake_strava/home/home_page.dart';
+import 'package:fake_strava/tracking/widgets/activity_feed_card.dart';
 import 'package:fake_strava/home/social_repository.dart';
 
 class ProgressPage extends StatelessWidget {
@@ -119,30 +119,21 @@ class ProgressPage extends StatelessWidget {
                   ),
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
                   margin: const EdgeInsets.only(bottom: 20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Row(
                     children: [
-                      Text(
-                        'Progress',
-                        style: AppTypography.displaySmall.copyWith(
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.5,
+                      Expanded(
+                        child: Text(
+                          'Progress',
+                          style: AppTypography.displaySmall.copyWith(
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.5,
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Hi, $displayName',
-                        style: AppTypography.headingSmall.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black.withValues(alpha: 0.65),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Here is your momentum from the last 7 days.',
-                        style: AppTypography.bodySmall.copyWith(
-                          color: Colors.black.withValues(alpha: 0.55),
-                        ),
+                      Icon(
+                        Icons.insights,
+                        color: kBrandOrange,
+                        size: 32,
                       ),
                     ],
                   ),
@@ -197,7 +188,7 @@ class ProgressPage extends StatelessWidget {
                 else
                   ...sessions.take(5).map((doc) {
                     return Padding(
-                      padding: const EdgeInsets.only(bottom: 14),
+                      padding: const EdgeInsets.only(bottom: 10),
                       child: ActivityFeedCard(
                         sessionId: doc.id,
                         data: doc.data(),

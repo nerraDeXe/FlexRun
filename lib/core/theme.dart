@@ -232,6 +232,16 @@ class MapThemeOption {
   final List<String> subdomains;
 }
 
+/// Carto basemap with `{r}` placeholder for @2x tiles — use with
+/// [TileLayer.retinaMode] on high-DPI screens for sharp embedded previews.
+const MapThemeOption kMapThemeRasterHdPreview = MapThemeOption(
+  label: 'OSM Light (HD preview)',
+  urlTemplate:
+      'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+  attribution: 'OpenStreetMap contributors, CARTO',
+  subdomains: <String>['a', 'b', 'c', 'd'],
+);
+
 const List<MapThemeOption> kMapThemeOptions = <MapThemeOption>[
   MapThemeOption(
     label: 'OSM Standard',

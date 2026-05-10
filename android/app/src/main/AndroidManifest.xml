@@ -13,7 +13,7 @@
     
 
     <application
-        android:label="fake_strava"
+        android:label="FlexRun"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <service

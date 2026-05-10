@@ -167,4 +167,49 @@ class TrackingRepository {
           }
         });
   }
+
+  /// Deletes a session owned by [userId], including `points`, `likes`,
+  /// `concurrent_runners`, and any `active_runners` broadcast doc.
+  Future<void> deleteCompletedSessionForUser({
+    required String sessionId,
+    required String userId,
+  }) async {
+    final sessionRef = _firestore.collection('tracking_sessions').doc(sessionId);
+    final sessionSnap = await sessionRef.get();
+    if (!sessionSnap.exists) {
+      return;
+    }
+    final owner = sessionSnap.data()?['userId'] as String?;
+    if (owner != userId) {
+      throw StateError('You can only delete your own exercises.');
+    }
+
+    Future<void> deleteInBatches(
+      CollectionReference<Map<String, dynamic>> col,
+    ) async {
+      while (true) {
+        final snap = await col.limit(500).get();
+        if (snap.docs.isEmpty) {
+          break;
+        }
+        final batch = _firestore.batch();
+        for (final doc in snap.docs) {
+          batch.delete(doc.reference);
+        }
+        await batch.commit();
+      }
+    }
+
+    await deleteInBatches(sessionRef.collection('points'));
+    await deleteInBatches(sessionRef.collection('likes'));
+    await deleteInBatches(sessionRef.collection('concurrent_runners'));
+
+    try {
+      await _firestore.collection('active_runners').doc(sessionId).delete();
+    } catch (_) {
+      // No live broadcast doc is fine.
+    }
+
+    await sessionRef.delete();
+  }
 }

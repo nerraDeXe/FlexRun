@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:fake_strava/core/theme.dart';
 import 'package:fake_strava/groups/group_repository.dart';
@@ -27,6 +28,7 @@ class _AddMembersPageState extends State<AddMembersPage> {
   bool _isSearching = false;
   Timer? _debounce;
   final Set<String> _addingIds = {};
+  final Set<String> _invitedIds = {};
 
   @override
   void initState() {
@@ -88,26 +90,28 @@ class _AddMembersPageState extends State<AddMembersPage> {
 
   Future<void> _addMember(String userId) async {
     if (_addingIds.contains(userId)) return;
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return;
 
     setState(() => _addingIds.add(userId));
 
     try {
-      await _repo.addMemberToGroup(groupId: widget.groupId, userId: userId);
+      await _repo.inviteUserToGroup(
+        groupId: widget.groupId,
+        invitedBy: currentUser.uid,
+        inviteeId: userId,
+      );
 
       if (mounted) {
-        // Technically, we should add to widget.currentMemberIds so it immediately updates UI,
-        // but `widget` fields are final. We'll just rely on the stream in the parent page to update it.
-        // For visual feedback here, we can temporarily add it to a local copy if we want,
-        // but pop-ing back or just changing button to "Added" works.
-        widget.currentMemberIds.add(
-          userId,
-        ); // Since it's a list reference, this mutates the original list.
+        setState(() {
+          _invitedIds.add(userId);
+        });
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Failed to add user: $e')));
+        ).showSnackBar(SnackBar(content: Text('Failed to send invite: $e')));
       }
     } finally {
       if (mounted) {
@@ -180,6 +184,7 @@ class _AddMembersPageState extends State<AddMembersPage> {
         final username = user['username'] as String? ?? id.substring(0, 6);
 
         final isAlreadyMember = widget.currentMemberIds.contains(id);
+        final isInvited = _invitedIds.contains(id);
         final isAdding = _addingIds.contains(id);
 
         return Card(
@@ -209,6 +214,17 @@ class _AddMembersPageState extends State<AddMembersPage> {
                       ),
                     ),
                   )
+                : isInvited
+                ? const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      'Invited',
+                      style: TextStyle(
+                        color: Colors.orange,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  )
                 : FilledButton(
                     onPressed: isAdding ? null : () => _addMember(id),
                     style: FilledButton.styleFrom(
@@ -224,7 +240,7 @@ class _AddMembersPageState extends State<AddMembersPage> {
                               color: Colors.white,
                             ),
                           )
-                        : const Text('Add'),
+                        : const Text('Invite'),
                   ),
           ),
         );

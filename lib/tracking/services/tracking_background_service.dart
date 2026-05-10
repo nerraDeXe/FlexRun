@@ -13,6 +13,7 @@ import '../models/tracking_snapshot.dart';
 import 'distance_calculator.dart';
 import 'tracking_repository.dart';
 import 'calorie_calculation_util.dart';
+import 'package:fake_strava/core/utils.dart';
 import 'package:fake_strava/profile/user_metrics.dart';
 import 'package:fake_strava/profile/user_metrics_repository.dart';
 
@@ -68,7 +69,7 @@ class TrackingBackgroundService {
         isForegroundMode: true,
         foregroundServiceNotificationId: 7341,
         autoStartOnBoot: false,
-        initialNotificationTitle: 'Fake Strava',
+        initialNotificationTitle: 'FlexRun',
         initialNotificationContent: 'GPS tracking ready',
         foregroundServiceTypes: [AndroidForegroundType.location],
       ),
@@ -92,8 +93,9 @@ class TrackingBackgroundService {
         elapsedSeconds: (payload?[_kElapsedSeconds] as num?)?.toInt() ?? 0,
         sessionId: payload?[_kSessionId] as String?,
         startedAt: _parseIso(payload?[_kStartedAtIso] as String?),
-        latitude: (payload?[_kLatitude] as num?)?.toDouble(),
-        longitude: (payload?[_kLongitude] as num?)?.toDouble(),
+        latitude: sanitizeLatitude((payload?[_kLatitude] as num?)?.toDouble()),
+        longitude:
+            sanitizeLongitude((payload?[_kLongitude] as num?)?.toDouble()),
       );
       _updatesController.add(snapshot);
     });
@@ -140,8 +142,8 @@ class TrackingBackgroundService {
       elapsedSeconds: prefs.getInt(_kElapsedSeconds) ?? 0,
       sessionId: prefs.getString(_kSessionId),
       startedAt: _parseIso(prefs.getString(_kStartedAtIso)),
-      latitude: prefs.getDouble(_kLatitude),
-      longitude: prefs.getDouble(_kLongitude),
+      latitude: sanitizeLatitude(prefs.getDouble(_kLatitude)),
+      longitude: sanitizeLongitude(prefs.getDouble(_kLongitude)),
     );
   }
 
@@ -394,6 +396,9 @@ Future<void> _onServiceStart(ServiceInstance service) async {
           if (!isTracking || sessionId == null || startedAt == null) {
             return;
           }
+          if (!isValidWgs84(position.latitude, position.longitude)) {
+            return;
+          }
           if (position.accuracy > _kMaxHorizontalAccuracyMeters) {
             return;
           }
@@ -487,7 +492,7 @@ Future<void> _onServiceStart(ServiceInstance service) async {
     if (service is AndroidServiceInstance) {
       await service.setAsForegroundService();
       await service.setForegroundNotificationInfo(
-        title: 'Fake Strava',
+        title: 'FlexRun',
         content: 'Tracking in background',
       );
     }

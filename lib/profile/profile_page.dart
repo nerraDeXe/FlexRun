@@ -144,13 +144,6 @@ class _ProfilePageState extends State<ProfilePage> {
             app: Firebase.app(),
             databaseId: 'fakestrava',
           ),
-          onShareMessage: (message) {
-            AppNotification.show(
-              context: context,
-              message: message,
-              type: NotificationType.info,
-            );
-          },
         ),
       ),
     );
@@ -175,34 +168,449 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     final email = user?.email ?? 'Unknown';
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 40, 16, 16),
-      children: [
-        Text(
-          'Profile',
-          style: Theme.of(
-            context,
-          ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800),
+    return Container(
+      color: kSurface,
+      child: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 24, 16, 28),
+          children: [
+            const _ProfilePageHeader(),
+            const SizedBox(height: 20),
+            _ProfileHeroCard(
+              displayName: widget.displayName,
+              email: email,
+            ),
+            const SizedBox(height: 24),
+            const _ProfileSectionHeader(
+              title: 'Your metrics',
+              subtitle: 'Used for calorie estimates and personalization',
+            ),
+            const SizedBox(height: 14),
+            _ProfileMetricsGlowCard(
+              userMetrics: _userMetrics,
+              onEdit: _showMetricsDialog,
+            ),
+            const SizedBox(height: 24),
+            const _ProfileSectionHeader(
+              title: 'Account & preferences',
+              subtitle: 'Security, history, and visibility',
+            ),
+            const SizedBox(height: 14),
+            _ProfileActionsGlowCard(
+              ghostMode: _ghostMode,
+              onGhostModeChanged: _setGhostMode,
+              onAccountSecurity: () => _openAccountSecurity(context),
+              onHistory: () => _openHistory(context),
+              onLogout: widget.onLogout,
+            ),
+          ],
         ),
-        const SizedBox(height: 12),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 28,
-                  backgroundColor: kBrandOrange,
+      ),
+    );
+  }
+}
+
+// --- Shared visual language with Progress page --------------------------------
+
+BoxDecoration _profileGlowCardDecoration({Color accent = kBrandOrange}) {
+  return BoxDecoration(
+    color: kSurfaceCard,
+    borderRadius: BorderRadius.circular(20),
+    border: Border.all(
+      color: accent.withValues(alpha: 0.12),
+      width: 1.2,
+    ),
+    boxShadow: [
+      BoxShadow(
+        color: accent.withValues(alpha: 0.06),
+        blurRadius: 14,
+        offset: const Offset(0, 2),
+      ),
+    ],
+  );
+}
+
+class _ProfilePageHeader extends StatelessWidget {
+  const _ProfilePageHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            kBrandOrange.withValues(alpha: 0.08),
+            Colors.white,
+          ],
+        ),
+        border: Border(
+          bottom: BorderSide(
+            color: Colors.black.withValues(alpha: 0.06),
+          ),
+        ),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Profile',
+              style: AppTypography.displaySmall.copyWith(
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.5,
+              ),
+            ),
+          ),
+          const Icon(
+            Icons.person,
+            color: kBrandOrange,
+            size: 32,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileHeroCard extends StatelessWidget {
+  const _ProfileHeroCard({
+    required this.displayName,
+    required this.email,
+  });
+
+  final String displayName;
+  final String email;
+
+  @override
+  Widget build(BuildContext context) {
+    final initial = displayName.isNotEmpty
+        ? displayName[0].toUpperCase()
+        : 'R';
+
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [kBrandBlack, kBrandOrange],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(26),
+        boxShadow: [
+          BoxShadow(
+            color: kBrandOrange.withValues(alpha: 0.22),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            right: -8,
+            top: -12,
+            child: Icon(
+              Icons.person_rounded,
+              size: 120,
+              color: Colors.white.withValues(alpha: 0.1),
+            ),
+          ),
+          Row(
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.35),
+                    width: 2,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.white.withValues(alpha: 0.25),
+                      blurRadius: 12,
+                      spreadRadius: 0,
+                    ),
+                  ],
+                ),
+                child: CircleAvatar(
+                  radius: 36,
+                  backgroundColor: Colors.white.withValues(alpha: 0.2),
                   foregroundColor: Colors.white,
                   child: Text(
-                    widget.displayName.isNotEmpty
-                        ? widget.displayName[0].toUpperCase()
-                        : 'R',
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
+                    initial,
+                    style: AppTypography.displaySmall.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
                     ),
                   ),
+                ),
+              ),
+              const SizedBox(width: 18),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      displayName,
+                      style: AppTypography.headingLarge.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      email,
+                      style: AppTypography.bodySmall.copyWith(
+                        color: Colors.white.withValues(alpha: 0.82),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileSectionHeader extends StatelessWidget {
+  const _ProfileSectionHeader({required this.title, this.subtitle});
+
+  final String title;
+  final String? subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: AppTypography.headingLarge.copyWith(
+            fontWeight: FontWeight.w900,
+            letterSpacing: -0.4,
+          ),
+        ),
+        if (subtitle != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            subtitle!,
+            style: AppTypography.bodySmall.copyWith(
+              color: Colors.black.withValues(alpha: 0.55),
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _ProfileMetricsGlowCard extends StatelessWidget {
+  const _ProfileMetricsGlowCard({
+    required this.userMetrics,
+    required this.onEdit,
+  });
+
+  final UserMetrics? userMetrics;
+  final VoidCallback onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    const accent = kInfo;
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: _profileGlowCardDecoration(accent: accent),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _ProfileAccentIconBadge(
+                icon: Icons.monitor_weight_outlined,
+                accent: accent,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  'Body stats',
+                  style: AppTypography.labelLarge.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: onEdit,
+                icon: const Icon(Icons.edit_rounded, size: 18),
+                label: const Text('Edit'),
+                style: TextButton.styleFrom(
+                  foregroundColor: kBrandOrange,
+                  textStyle: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+          if (userMetrics != null) ...[
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 20,
+              runSpacing: 12,
+              children: [
+                _MetricChip(
+                  label: 'Height',
+                  value: '${userMetrics!.heightCm.toStringAsFixed(1)} cm',
+                ),
+                _MetricChip(
+                  label: 'Weight',
+                  value: '${userMetrics!.weightKg.toStringAsFixed(1)} kg',
+                ),
+                _MetricChip(
+                  label: 'Age',
+                  value: '${userMetrics!.age} years',
+                ),
+                _MetricChip(
+                  label: 'Gender',
+                  value: userMetrics!.gender == 'M' ? 'Male' : 'Female',
+                ),
+              ],
+            ),
+          ] else
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Text(
+                'No metrics set. Add your metrics for accurate calorie tracking.',
+                style: AppTypography.bodySmall.copyWith(
+                  color: Colors.black.withValues(alpha: 0.55),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MetricChip extends StatelessWidget {
+  const _MetricChip({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: AppTypography.captionSmall.copyWith(
+            color: Colors.black.withValues(alpha: 0.5),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: AppTypography.bodyMedium.copyWith(
+            fontWeight: FontWeight.w800,
+            color: Colors.black.withValues(alpha: 0.88),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ProfileAccentIconBadge extends StatelessWidget {
+  const _ProfileAccentIconBadge({
+    required this.icon,
+    required this.accent,
+  });
+
+  final IconData icon;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 50,
+      height: 50,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            accent.withValues(alpha: 0.2),
+            accent.withValues(alpha: 0.5),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: accent.withValues(alpha: 0.12),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Icon(icon, color: accent, size: 24),
+    );
+  }
+}
+
+class _ProfileActionsGlowCard extends StatelessWidget {
+  const _ProfileActionsGlowCard({
+    required this.ghostMode,
+    required this.onGhostModeChanged,
+    required this.onAccountSecurity,
+    required this.onHistory,
+    required this.onLogout,
+  });
+
+  final bool ghostMode;
+  final ValueChanged<bool> onGhostModeChanged;
+  final VoidCallback onAccountSecurity;
+  final VoidCallback onHistory;
+  final Future<void> Function() onLogout;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: _profileGlowCardDecoration(),
+      child: Column(
+        children: [
+          _ProfileActionRow(
+            icon: Icons.manage_accounts_outlined,
+            accent: kBrandOrange,
+            title: 'Account Security',
+            subtitle: 'Change email or password',
+            trailing: const Icon(Icons.chevron_right, color: kTextTertiary),
+            onTap: onAccountSecurity,
+          ),
+          Divider(height: 1, color: Colors.black.withValues(alpha: 0.06)),
+          _ProfileActionRow(
+            icon: Icons.history_rounded,
+            accent: kSuccess,
+            title: 'Workout History',
+            subtitle: 'Browse past runs and export GPX',
+            trailing: const Icon(Icons.chevron_right, color: kTextTertiary),
+            onTap: onHistory,
+          ),
+          Divider(height: 1, color: Colors.black.withValues(alpha: 0.06)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              children: [
+                const _ProfileAccentIconBadge(
+                  icon: Icons.visibility_off_outlined,
+                  accent: kWarning,
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -210,170 +618,130 @@ class _ProfilePageState extends State<ProfilePage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        widget.displayName,
-                        style: const TextStyle(
-                          fontSize: 18,
+                        'Ghost Mode',
+                        style: AppTypography.bodyLarge.copyWith(
                           fontWeight: FontWeight.w800,
+                          color: Colors.black.withValues(alpha: 0.88),
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(email),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Hide your location from other runners',
+                        style: AppTypography.bodySmall.copyWith(
+                          color: Colors.black.withValues(alpha: 0.52),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                     ],
                   ),
+                ),
+                Switch(
+                  value: ghostMode,
+                  onChanged: onGhostModeChanged,
                 ),
               ],
             ),
           ),
-        ),
-        const SizedBox(height: 12),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.monitor_weight_outlined),
-                    const SizedBox(width: 12),
-                    const Text(
-                      'Your Metrics',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
+          Divider(height: 1, color: Colors.black.withValues(alpha: 0.06)),
+          _ProfileActionRow(
+            icon: Icons.logout_rounded,
+            accent: kError,
+            title: 'Logout',
+            subtitle: 'Sign out of the app',
+            trailing: const Icon(Icons.chevron_right, color: kTextTertiary),
+            onTap: () async {
+              final confirmed = await showDialog<bool>(
+                context: context,
+                builder: (dialogContext) => AlertDialog(
+                  title: const Text('Log out?'),
+                  content: const Text(
+                    'Are you sure you want to sign out of the app?',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () =>
+                          Navigator.of(dialogContext).pop(false),
+                      child: const Text('Cancel'),
                     ),
-                    const Spacer(),
-                    TextButton.icon(
-                      onPressed: _showMetricsDialog,
-                      icon: const Icon(Icons.edit),
-                      label: const Text('Edit'),
+                    FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: kError,
+                        foregroundColor: Colors.white,
+                      ),
+                      onPressed: () =>
+                          Navigator.of(dialogContext).pop(true),
+                      child: const Text('Log Out'),
                     ),
                   ],
                 ),
-                if (_userMetrics != null) ...[
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 16,
-                    runSpacing: 8,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Height',
-                            style: TextStyle(fontSize: 12, color: Colors.grey),
-                          ),
-                          Text(
-                            '${_userMetrics!.heightCm.toStringAsFixed(1)} cm',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Weight',
-                            style: TextStyle(fontSize: 12, color: Colors.grey),
-                          ),
-                          Text(
-                            '${_userMetrics!.weightKg.toStringAsFixed(1)} kg',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Age',
-                            style: TextStyle(fontSize: 12, color: Colors.grey),
-                          ),
-                          Text(
-                            '${_userMetrics!.age} years',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Gender',
-                            style: TextStyle(fontSize: 12, color: Colors.grey),
-                          ),
-                          Text(
-                            _userMetrics!.gender == 'M' ? 'Male' : 'Female',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ] else
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      'No metrics set. Add your metrics for accurate calorie tracking.',
-                      style: TextStyle(fontSize: 13, color: Colors.grey[600]),
-                    ),
-                  ),
-              ],
-            ),
+              );
+              if (confirmed != true || !context.mounted) return;
+              await onLogout();
+            },
           ),
-        ),
-        const SizedBox(height: 12),
-        Card(
-          child: Column(
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileActionRow extends StatelessWidget {
+  const _ProfileActionRow({
+    required this.icon,
+    required this.accent,
+    required this.title,
+    required this.subtitle,
+    required this.trailing,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final Color accent;
+  final String title;
+  final String subtitle;
+  final Widget trailing;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
             children: [
-              ListTile(
-                leading: const Icon(Icons.manage_accounts_outlined),
-                title: const Text('Account Security'),
-                subtitle: const Text('Change email or password'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => _openAccountSecurity(context),
+              _ProfileAccentIconBadge(icon: icon, accent: accent),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: AppTypography.bodyLarge.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: Colors.black.withValues(alpha: 0.88),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: AppTypography.bodySmall.copyWith(
+                        color: Colors.black.withValues(alpha: 0.52),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              const Divider(height: 1),
-              ListTile(
-                leading: const Icon(Icons.history),
-                title: const Text('Workout History'),
-                subtitle: const Text('Browse past runs and export GPX'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => _openHistory(context),
-              ),
-              const Divider(height: 1),
-              ListTile(
-                leading: const Icon(Icons.visibility_off_outlined),
-                title: const Text('Ghost Mode'),
-                subtitle: const Text('Hide your location from other runners'),
-                trailing: Switch(value: _ghostMode, onChanged: _setGhostMode),
-                onTap: () => _setGhostMode(!_ghostMode),
-              ),
-              const Divider(height: 1),
-              ListTile(
-                leading: const Icon(Icons.logout),
-                title: const Text('Log out'),
-                subtitle: const Text('Sign out of the app'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: widget.onLogout,
-              ),
+              trailing,
             ],
           ),
         ),
-      ],
+      ),
     );
   }
 }

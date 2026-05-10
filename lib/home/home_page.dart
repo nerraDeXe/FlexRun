@@ -1,22 +1,16 @@
 import 'dart:async';
-import 'dart:math' as math;
-import 'dart:ui' as ui;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
 
-import 'package:fake_strava/core/maplibre_config.dart';
 import 'package:fake_strava/core/theme.dart';
 import 'package:fake_strava/core/ui_components.dart';
-import 'package:fake_strava/home/flyover_replay_page_stub.dart'
-    if (dart.library.io) 'package:fake_strava/home/flyover_replay_page.dart';
 import 'package:fake_strava/groups/groups_page.dart';
 import 'package:fake_strava/home/social_repository.dart';
 import 'package:fake_strava/home/searched_user_profile_page.dart';
+import 'package:fake_strava/tracking/widgets/activity_feed_card.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key, required this.displayName});
@@ -122,19 +116,25 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     if (Firebase.apps.isEmpty) {
-      return const EmptyStateWidget(
-        icon: Icons.cloud_off_outlined,
-        title: 'Feed unavailable',
-        subtitle: 'Firebase is not ready yet. Try again in a moment.',
+      return SafeArea(
+        bottom: false,
+        child: const EmptyStateWidget(
+          icon: Icons.cloud_off_outlined,
+          title: 'Feed unavailable',
+          subtitle: 'Firebase is not ready yet. Try again in a moment.',
+        ),
       );
     }
 
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) {
-      return const EmptyStateWidget(
-        icon: Icons.person_off_outlined,
-        title: 'Sign in required',
-        subtitle: 'Please sign in to see the Home feed.',
+      return SafeArea(
+        bottom: false,
+        child: const EmptyStateWidget(
+          icon: Icons.person_off_outlined,
+          title: 'Sign in required',
+          subtitle: 'Please sign in to see the Home feed.',
+        ),
       );
     }
 
@@ -145,7 +145,10 @@ class _HomePageState extends State<HomePage> {
           .snapshots(),
       builder: (context, currentUserSnapshot) {
         if (!currentUserSnapshot.hasData) {
-          return const _HomeLoadingState();
+          return SafeArea(
+            bottom: false,
+            child: const _HomeLoadingState(),
+          );
         }
 
         final userData =
@@ -165,83 +168,87 @@ class _HomePageState extends State<HomePage> {
 
         final allowedUsers = <String>{currentUser.uid, ...followingIds};
 
-        return Column(
-          children: [
-            _buildHeaderSection(
-              context: context,
-              displayName: displayName,
-              username: username,
-              followingCount: followingIds.length,
-            ),
-            Expanded(
-              child: _searchQuery.isNotEmpty
-                  ? _buildSearchResults()
-                  : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                      stream: _socialRepository.firestore
-                          .collection('tracking_sessions')
-                          .orderBy('startedAt', descending: true)
-                          .limit(150)
-                          .snapshots(),
-                      builder: (context, feedSnapshot) {
-                        if (feedSnapshot.hasError) {
-                          return Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: ErrorStateWidget(
-                              message:
-                                  'Unable to load activity feed.\n${feedSnapshot.error}',
-                              onAction: () => setState(() {}),
-                            ),
-                          );
-                        }
-                        if (!feedSnapshot.hasData) {
-                          return const _HomeLoadingState();
-                        }
-
-                        final allDocs = feedSnapshot.data!.docs;
-                        final feed = allDocs
-                            .where((doc) {
-                              final data = doc.data();
-                              final uid = data['userId'] as String?;
-                              final status = (data['status'] as String?) ?? '';
-                              if (uid == null) {
-                                return false;
-                              }
-                              return allowedUsers.contains(uid) &&
-                                  status == 'stopped';
-                            })
-                            .toList(growable: false);
-
-                        if (feed.isEmpty) {
-                          return const EmptyStateWidget(
-                            icon: Icons.directions_run_outlined,
-                            title: 'No activity yet',
-                            subtitle:
-                                'Start a workout or follow more users to fill your Home feed.',
-                          );
-                        }
-
-                        return ListView.separated(
-                          padding: const EdgeInsets.fromLTRB(14, 12, 14, 20),
-                          itemCount: feed.length,
-                          separatorBuilder: (_, _) =>
-                              const SizedBox(height: 14),
-                          itemBuilder: (context, index) {
-                            final doc = feed[index];
-                            return ActivityFeedCard(
-                              sessionId: doc.id,
-                              data: doc.data(),
-                              currentUserId: currentUser.uid,
-                              currentDisplayName: widget.displayName,
-                              firestore: _socialRepository.firestore,
-                              socialRepository: _socialRepository,
-                              durationLabel: _durationLabel,
+        return SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              _buildHeaderSection(
+                context: context,
+                displayName: displayName,
+                username: username,
+                followingCount: followingIds.length,
+              ),
+              Expanded(
+                child: _searchQuery.isNotEmpty
+                    ? _buildSearchResults()
+                    : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                        stream: _socialRepository.firestore
+                            .collection('tracking_sessions')
+                            .orderBy('startedAt', descending: true)
+                            .limit(150)
+                            .snapshots(),
+                        builder: (context, feedSnapshot) {
+                          if (feedSnapshot.hasError) {
+                            return Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: ErrorStateWidget(
+                                message:
+                                    'Unable to load activity feed.\n${feedSnapshot.error}',
+                                onAction: () => setState(() {}),
+                              ),
                             );
-                          },
-                        );
-                      },
-                    ),
-            ),
-          ],
+                          }
+                          if (!feedSnapshot.hasData) {
+                            return const _HomeLoadingState();
+                          }
+
+                          final allDocs = feedSnapshot.data!.docs;
+                          final feed = allDocs
+                              .where((doc) {
+                                final data = doc.data();
+                                final uid = data['userId'] as String?;
+                                final status =
+                                    (data['status'] as String?) ?? '';
+                                if (uid == null) {
+                                  return false;
+                                }
+                                return allowedUsers.contains(uid) &&
+                                    status == 'stopped';
+                              })
+                              .toList(growable: false);
+
+                          if (feed.isEmpty) {
+                            return const EmptyStateWidget(
+                              icon: Icons.directions_run_outlined,
+                              title: 'No activity yet',
+                              subtitle:
+                                  'Start a workout or follow more users to fill your Home feed.',
+                            );
+                          }
+
+                          return ListView.separated(
+                            padding: const EdgeInsets.fromLTRB(12, 10, 12, 16),
+                            itemCount: feed.length,
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(height: 10),
+                            itemBuilder: (context, index) {
+                              final doc = feed[index];
+                              return ActivityFeedCard(
+                                sessionId: doc.id,
+                                data: doc.data(),
+                                currentUserId: currentUser.uid,
+                                currentDisplayName: widget.displayName,
+                                firestore: _socialRepository.firestore,
+                                socialRepository: _socialRepository,
+                                durationLabel: _durationLabel,
+                              );
+                            },
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -343,17 +350,16 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 32, 16, 20),
+        padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Profile row with enhanced spacing
             Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  width: 56,
-                  height: 56,
+                  width: 44,
+                  height: 44,
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
@@ -363,12 +369,12 @@ class _HomePageState extends State<HomePage> {
                         kBrandOrange.withValues(alpha: 0.68),
                       ],
                     ),
-                    borderRadius: BorderRadius.circular(18),
+                    borderRadius: BorderRadius.circular(14),
                     boxShadow: [
                       BoxShadow(
-                        color: kBrandOrange.withValues(alpha: 0.22),
-                        blurRadius: 20,
-                        offset: const Offset(0, 8),
+                        color: kBrandOrange.withValues(alpha: 0.18),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
                       ),
                     ],
                   ),
@@ -378,152 +384,101 @@ class _HomePageState extends State<HomePage> {
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w900,
-                        fontSize: 26,
+                        fontSize: 20,
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        'Welcome back',
-                        style: AppTypography.captionSmall.copyWith(
-                          color: Colors.black.withValues(alpha: 0.6),
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        displayName,
-                        style: AppTypography.displaySmall.copyWith(
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.5,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        '@$username',
-                        style: AppTypography.bodySmall.copyWith(
-                          color: Colors.black.withValues(alpha: 0.5),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        kBrandOrange.withValues(alpha: 0.1),
-                        kBrandOrange.withValues(alpha: 0.05),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => const GroupsPage()),
-                        );
-                      },
-                      borderRadius: BorderRadius.circular(16),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 10,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
+                      Text.rich(
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        TextSpan(
+                          style: AppTypography.bodyMedium.copyWith(
+                            color: kTextPrimary,
+                            height: 1.25,
+                          ),
                           children: [
-                            Icon(
-                              Icons.group_outlined,
-                              size: 18,
-                              color: kBrandOrange,
+                            TextSpan(
+                              text: 'Welcome back, ',
+                              style: TextStyle(
+                                color: Colors.black.withValues(alpha: 0.55),
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'Groups',
-                              style: AppTypography.labelLarge.copyWith(
-                                color: kBrandOrange,
-                                fontWeight: FontWeight.w600,
+                            TextSpan(
+                              text: displayName,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
                               ),
                             ),
                           ],
                         ),
                       ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '@$username',
+                        style: AppTypography.labelSmall.copyWith(
+                          color: Colors.black.withValues(alpha: 0.5),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Tooltip(
+                  message: '$followingCount people you follow',
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: kBrandOrange.withValues(alpha: 0.2),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.people_outline,
+                          size: 15,
+                          color: kBrandOrange,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '$followingCount',
+                          style: AppTypography.labelMedium.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: Colors.black.withValues(alpha: 0.78),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 18),
-            // Following badge with improved design
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Colors.white,
-                    Colors.white.withValues(alpha: 0.9),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(
-                  color: kBrandOrange.withValues(alpha: 0.15),
-                  width: 1.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: kBrandOrange.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      Icons.people_outline,
-                      size: 20,
-                      color: kBrandOrange,
-                    ),
-                  ),
-                  const SizedBox(width: 11),
-                  Text(
-                    'Following $followingCount',
-                    style: AppTypography.labelLarge.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black.withValues(alpha: 0.75),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            // Enhanced search bar
+            const SizedBox(height: 10),
             Row(
               children: [
                 Expanded(
                   child: Container(
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(18),
+                      borderRadius: BorderRadius.circular(14),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.08),
-                          blurRadius: 12,
+                          color: Colors.black.withValues(alpha: 0.06),
+                          blurRadius: 8,
                           offset: const Offset(0, 2),
                         ),
                       ],
@@ -539,10 +494,10 @@ class _HomePageState extends State<HomePage> {
                           color: Colors.black.withValues(alpha: 0.4),
                         ),
                         prefixIcon: Padding(
-                          padding: const EdgeInsets.only(left: 16, right: 12),
+                          padding: const EdgeInsets.only(left: 10, right: 8),
                           child: Icon(
                             Icons.search_rounded,
-                            size: 22,
+                            size: 20,
                             color: Colors.black.withValues(alpha: 0.5),
                           ),
                         ),
@@ -550,54 +505,94 @@ class _HomePageState extends State<HomePage> {
                             ? IconButton(
                                 icon: Icon(
                                   Icons.close_rounded,
-                                  size: 20,
+                                  size: 18,
                                   color: Colors.black.withValues(alpha: 0.5),
                                 ),
                                 onPressed: () {
                                   _usernameController.clear();
                                   _executeSearch();
                                 },
-                                splashRadius: 24,
+                                splashRadius: 20,
                               )
                             : null,
                         isDense: true,
                         filled: true,
                         fillColor: Colors.white,
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(18),
+                          borderRadius: BorderRadius.circular(14),
                           borderSide: BorderSide.none,
                         ),
                         enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(18),
+                          borderRadius: BorderRadius.circular(14),
                           borderSide: BorderSide.none,
                         ),
                         focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(18),
+                          borderRadius: BorderRadius.circular(14),
                           borderSide: BorderSide(
                             color: kBrandOrange,
-                            width: 2,
+                            width: 1.5,
                           ),
                         ),
                         contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 14,
+                          horizontal: 4,
+                          vertical: 10,
                         ),
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 4),
+                Tooltip(
+                  message: 'Groups',
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const GroupsPage()),
+                        );
+                      },
+                      borderRadius: BorderRadius.circular(14),
+                      child: Ink(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: Colors.black.withValues(alpha: 0.08),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.06),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: const Center(
+                          child: Icon(
+                            Icons.group_outlined,
+                            size: 22,
+                            color: kBrandOrange,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
                 Container(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [kBrandOrange, kBrandOrange.withValues(alpha: 0.88)],
                     ),
-                    borderRadius: BorderRadius.circular(18),
+                    borderRadius: BorderRadius.circular(14),
                     boxShadow: [
                       BoxShadow(
-                        color: kBrandOrange.withValues(alpha: 0.25),
-                        blurRadius: 16,
-                        offset: const Offset(0, 4),
+                        color: kBrandOrange.withValues(alpha: 0.2),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
                       ),
                     ],
                   ),
@@ -605,12 +600,12 @@ class _HomePageState extends State<HomePage> {
                     color: Colors.transparent,
                     child: InkWell(
                       onTap: _executeSearch,
-                      borderRadius: BorderRadius.circular(18),
+                      borderRadius: BorderRadius.circular(14),
                       child: Padding(
-                        padding: const EdgeInsets.all(14),
+                        padding: const EdgeInsets.all(10),
                         child: Icon(
                           Icons.search_rounded,
-                          size: 22,
+                          size: 20,
                           color: Colors.white,
                         ),
                       ),
@@ -622,1284 +617,6 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
       ),
-    );
-  }
-}
-
-class ActivityFeedCard extends StatelessWidget {
-  const ActivityFeedCard({
-    super.key,
-    required this.sessionId,
-    required this.data,
-    required this.currentUserId,
-    required this.currentDisplayName,
-    required this.firestore,
-    required this.socialRepository,
-    required this.durationLabel,
-  });
-
-  final String sessionId;
-  final Map<String, dynamic> data;
-  final String currentUserId;
-  final String currentDisplayName;
-  final FirebaseFirestore firestore;
-  final SocialRepository socialRepository;
-  final String Function(int seconds) durationLabel;
-
-  @override
-  Widget build(BuildContext context) {
-    final actorId = data['userId'] as String?;
-    final isMine = actorId == currentUserId;
-    final distanceKm =
-        ((data['distanceMeters'] as num?)?.toDouble() ?? 0) / 1000;
-    final calories = (data['caloriesKcal'] as num?)?.toDouble() ?? 0;
-    final elevation = (data['elevationGainMeters'] as num?)?.toDouble() ?? 0;
-    final durationSeconds =
-        (data['activeDurationSeconds'] as num?)?.toInt() ?? 0;
-    final pace = durationSeconds > 0 && distanceKm > 0
-        ? (durationSeconds / 60) / distanceKm
-        : 0.0;
-
-    final startedAt = DateTime.tryParse(data['startedAt'] as String? ?? '');
-    final startedLabel = startedAt == null
-        ? 'Unknown time'
-        : '${startedAt.toLocal().year}-${startedAt.toLocal().month.toString().padLeft(2, '0')}-${startedAt.toLocal().day.toString().padLeft(2, '0')} ${startedAt.toLocal().hour.toString().padLeft(2, '0')}:${startedAt.toLocal().minute.toString().padLeft(2, '0')}';
-
-    final likesCollection = firestore
-        .collection('tracking_sessions')
-        .doc(sessionId)
-        .collection('likes');
-
-    final fallbackUsername =
-        (data['username'] as String?)?.trim().isNotEmpty == true
-        ? (data['username'] as String)
-        : (actorId != null && actorId.length >= 6
-              ? actorId.substring(0, 6)
-              : 'runner');
-    final fallbackDisplayName =
-        (data['userDisplayName'] as String?)?.trim().isNotEmpty == true
-        ? (data['userDisplayName'] as String)
-        : null;
-
-    if (actorId == null) {
-      return _buildFeedCard(
-        context: context,
-        actorUsername: fallbackUsername,
-        actorDisplayName: fallbackDisplayName,
-        isMine: isMine,
-        startedLabel: startedLabel,
-        distanceKm: distanceKm,
-        durationSeconds: durationSeconds,
-        pace: pace,
-        calories: calories,
-        elevation: elevation,
-        likesCollection: likesCollection,
-      );
-    }
-
-    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: firestore.collection('users').doc(actorId).snapshots(),
-      builder: (context, userSnapshot) {
-        final profileData = userSnapshot.data?.data();
-        final profileUsername =
-            (profileData?['username'] as String?)?.trim().isNotEmpty == true
-            ? (profileData?['username'] as String)
-            : fallbackUsername;
-        final profileDisplayName =
-            (profileData?['displayName'] as String?)?.trim().isNotEmpty == true
-            ? (profileData?['displayName'] as String)
-            : fallbackDisplayName;
-
-        return _buildFeedCard(
-          context: context,
-          actorUsername: profileUsername,
-          actorDisplayName: profileDisplayName,
-          isMine: isMine,
-          startedLabel: startedLabel,
-          distanceKm: distanceKm,
-          durationSeconds: durationSeconds,
-          pace: pace,
-          calories: calories,
-          elevation: elevation,
-          likesCollection: likesCollection,
-        );
-      },
-    );
-  }
-
-  Widget _buildFeedCard({
-    required BuildContext context,
-    required String actorUsername,
-    required String? actorDisplayName,
-    required bool isMine,
-    required String startedLabel,
-    required double distanceKm,
-    required int durationSeconds,
-    required double pace,
-    required double calories,
-    required double elevation,
-    required CollectionReference<Map<String, dynamic>> likesCollection,
-  }) {
-    final title = isMine ? 'You' : '@$actorUsername';
-    final subtitle = actorDisplayName != null && actorDisplayName.isNotEmpty
-        ? '$actorDisplayName · $startedLabel'
-        : startedLabel;
-
-    return AppCard(
-      padding: EdgeInsets.zero,
-      onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => _HomeActivityDetailPage(
-              firestore: firestore,
-              sessionId: sessionId,
-              sessionData: data,
-              actorTitle: title,
-            ),
-          ),
-        );
-      },
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Colors.white, Colors.white.withValues(alpha: 0.98)],
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.08),
-                blurRadius: 16,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header with avatar and info
-                Row(
-                  children: [
-                    Container(
-                      width: 56,
-                      height: 56,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            kBrandOrange,
-                            kBrandOrange.withValues(alpha: 0.75),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(18),
-                        boxShadow: [
-                          BoxShadow(
-                            color: kBrandOrange.withValues(alpha: 0.2),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Center(
-                        child: Text(
-                          (actorUsername.isNotEmpty ? actorUsername[0] : 'R')
-                              .toUpperCase(),
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w900,
-                            fontSize: 24,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            title,
-                            style: AppTypography.headingSmall.copyWith(
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            subtitle,
-                            style: AppTypography.bodySmall.copyWith(
-                              color: Colors.black.withValues(alpha: 0.55),
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: kBrandOrange.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Icon(
-                        Icons.arrow_outward_rounded,
-                        color: kBrandOrange,
-                        size: 20,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                // Stats grid with enhanced design
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: kSurface,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(
-                      color: Colors.black.withValues(alpha: 0.05),
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _statTile(
-                              icon: Icons.route,
-                              label: 'Distance',
-                              value: '${distanceKm.toStringAsFixed(2)} km',
-                              accent: kBrandOrange,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _statTile(
-                              icon: Icons.timer_outlined,
-                              label: 'Time',
-                              value: durationLabel(durationSeconds),
-                              accent: kInfo,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _statTile(
-                              icon: Icons.speed,
-                              label: 'Pace',
-                              value: pace > 0
-                                  ? '${pace.toStringAsFixed(2)} min/km'
-                                  : '-- min/km',
-                              accent: kBrandBlack,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _statTile(
-                              icon: Icons.local_fire_department,
-                              label: 'Calories',
-                              value: '${calories.toStringAsFixed(0)} kcal',
-                              accent: kWarning,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      _statTile(
-                        icon: Icons.terrain,
-                        label: 'Elevation',
-                        value: '+${elevation.toStringAsFixed(0)} m',
-                        accent: kSuccess,
-                        isWide: true,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 14),
-                StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                  stream: likesCollection.snapshots(),
-                  builder: (context, likeSnapshot) {
-                    final likes =
-                        likeSnapshot.data?.docs ??
-                        const <QueryDocumentSnapshot<Map<String, dynamic>>>[];
-                    final likeCount = likes.length;
-                    final liked = likes.any((doc) => doc.id == currentUserId);
-                    return Row(
-                      children: [
-                        Expanded(
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 12,
-                            ),
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: liked
-                                    ? [
-                                        Colors.redAccent.withValues(alpha: 0.12),
-                                        Colors.redAccent.withValues(alpha: 0.08),
-                                      ]
-                                    : [
-                                        Colors.black.withValues(alpha: 0.05),
-                                        Colors.black.withValues(alpha: 0.03),
-                                      ],
-                              ),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: liked
-                                    ? Colors.redAccent.withValues(alpha: 0.15)
-                                    : Colors.black.withValues(alpha: 0.08),
-                                width: 1,
-                              ),
-                            ),
-                            child: Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                onTap: isMine
-                                    ? null
-                                    : () async {
-                                        await socialRepository.toggleLike(
-                                          sessionId: sessionId,
-                                          currentUserId: currentUserId,
-                                          like: !liked,
-                                          displayName: currentDisplayName,
-                                        );
-                                      },
-                                borderRadius: BorderRadius.circular(16),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    AnimatedScale(
-                                      scale: liked ? 1.1 : 1.0,
-                                      duration: const Duration(milliseconds: 200),
-                                      child: Icon(
-                                        liked
-                                            ? Icons.favorite_rounded
-                                            : Icons.favorite_border_rounded,
-                                        color: liked
-                                            ? Colors.redAccent
-                                            : Colors.black.withValues(alpha: 0.6),
-                                        size: 20,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Text(
-                                      '$likeCount ${likeCount == 1 ? 'like' : 'likes'}',
-                                      style: AppTypography.bodySmall.copyWith(
-                                        color: liked
-                                            ? Colors.redAccent
-                                            : Colors.black.withValues(alpha: 0.65),
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        if (isMine) ...[
-                          const SizedBox(width: 10),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 12,
-                            ),
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  kBrandOrange.withValues(alpha: 0.15),
-                                  kBrandOrange.withValues(alpha: 0.1),
-                                ],
-                              ),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: kBrandOrange.withValues(alpha: 0.2),
-                                width: 1,
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.check_circle_rounded,
-                                  color: kBrandOrange,
-                                  size: 20,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Your activity',
-                                  style: AppTypography.bodySmall.copyWith(
-                                    color: kBrandOrange,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ],
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _statTile({
-    required IconData icon,
-    required String label,
-    required String value,
-    required Color accent,
-    bool isWide = false,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: accent.withValues(alpha: 0.08),
-          width: 1.2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: accent.withValues(alpha: 0.05),
-            blurRadius: 12,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: accent.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(13),
-            ),
-            child: Icon(icon, size: 20, color: accent),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: AppTypography.labelSmall.copyWith(
-                    color: Colors.black.withValues(alpha: 0.55),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  value,
-                  style: AppTypography.bodyLarge.copyWith(
-                    fontWeight: FontWeight.w900,
-                    color: Colors.black.withValues(alpha: 0.9),
-                    letterSpacing: -0.3,
-                  ),
-                  maxLines: isWide ? 1 : 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _HomeActivityDetailPage extends StatelessWidget {
-  const _HomeActivityDetailPage({
-    required this.firestore,
-    required this.sessionId,
-    required this.sessionData,
-    required this.actorTitle,
-  });
-
-  final FirebaseFirestore firestore;
-  final String sessionId;
-  final Map<String, dynamic> sessionData;
-  final String actorTitle;
-
-  String _formatDuration(DateTime? startedAt, DateTime? endedAt, int seconds) {
-    Duration? elapsed;
-    if (seconds > 0) {
-      elapsed = Duration(seconds: seconds);
-    } else if (startedAt != null && endedAt != null) {
-      elapsed = endedAt.difference(startedAt);
-    }
-    if (elapsed == null) {
-      return '--:--:--';
-    }
-    final h = elapsed.inHours;
-    final m = elapsed.inMinutes.remainder(60);
-    final s = elapsed.inSeconds.remainder(60);
-    return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
-  }
-
-  /// Calculates pace in min/km format from distance and duration
-  /// Returns "M:SS" format (e.g., "6:45" for 6 minutes 45 seconds per km)
-  String _calculatePace(double distanceKm, int durationSeconds) {
-    if (distanceKm <= 0 || durationSeconds <= 0) {
-      return '--:--';
-    }
-    // Calculate seconds per km
-    final secondsPerKm = durationSeconds / distanceKm;
-    final minutes = (secondsPerKm / 60).floor();
-    final seconds = (secondsPerKm % 60).round();
-    return '$minutes:${seconds.toString().padLeft(2, '0')}';
-  }
-
-  /// Calculates speed in km/h for a given segment
-  double _calculateSpeed(LatLng start, LatLng end, int durationMs) {
-    if (durationMs <= 0) return 0;
-    // Approximate distance in km using Haversine formula simplified
-    const double earthRadiusKm = 6371;
-    final double lat1 = start.latitude * math.pi / 180;
-    final double lat2 = end.latitude * math.pi / 180;
-    final double dLat = (end.latitude - start.latitude) * math.pi / 180;
-    final double dLon = (end.longitude - start.longitude) * math.pi / 180;
-
-    final double a =
-        (1 - math.cos(dLat / 2)) / 2 +
-        math.cos(lat1) * math.cos(lat2) * (1 - math.cos(dLon / 2)) / 2;
-    final double distanceKm =
-        2 * earthRadiusKm * math.atan2(math.sqrt(a), math.sqrt(1 - a));
-
-    final double durationHours = durationMs / (1000 * 60 * 60);
-    return distanceKm / durationHours;
-  }
-
-  /// Returns color based on speed: green (fast) → yellow → red (slow)
-  /// Assumes average running speed around 10 km/h
-  Color _getSpeedColor(double speedKmh) {
-    // Normalize speed: 15 km/h = fast (green), 5 km/h = slow (red)
-    final normalized = ((speedKmh - 5) / 10).clamp(0.0, 1.0);
-
-    if (normalized > 0.5) {
-      // Green to yellow
-      final t = (normalized - 0.5) * 2;
-      return Color.lerp(
-        const Color(0xFF4CAF50), // Green
-        const Color(0xFFFDD835), // Yellow
-        1 - t,
-      )!;
-    } else {
-      // Yellow to red
-      final t = normalized * 2;
-      return Color.lerp(
-        const Color(0xFFF44336), // Red
-        const Color(0xFFFDD835), // Yellow
-        1 - t,
-      )!;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final startedAt = DateTime.tryParse(
-      sessionData['startedAt'] as String? ?? '',
-    );
-    final endedAt = DateTime.tryParse(sessionData['endedAt'] as String? ?? '');
-    final distanceKm =
-        ((sessionData['distanceMeters'] as num?)?.toDouble() ?? 0) / 1000;
-    final calories = (sessionData['caloriesKcal'] as num?)?.toDouble() ?? 0;
-    final elevation =
-        (sessionData['elevationGainMeters'] as num?)?.toDouble() ?? 0;
-    final durationSeconds =
-        (sessionData['activeDurationSeconds'] as num?)?.toInt() ??
-        ((startedAt != null && endedAt != null)
-            ? endedAt.difference(startedAt).inSeconds
-            : 0);
-    final durationLabel = _formatDuration(startedAt, endedAt, durationSeconds);
-    final paceLabel = _calculatePace(distanceKm, durationSeconds);
-    final averageSpeed = durationSeconds > 0
-        ? distanceKm / (durationSeconds / 3600)
-        : 0.0;
-    final averageSpeedLabel = averageSpeed > 0
-        ? '${averageSpeed.toStringAsFixed(1)} km/h'
-        : '-- km/h';
-
-    return Scaffold(
-      backgroundColor: kSurface,
-      appBar: AppBar(
-        title: Text(
-          '$actorTitle Activity',
-          style: AppTypography.headingMedium.copyWith(
-            color: Colors.white,
-            fontWeight: FontWeight.w800,
-            letterSpacing: -0.5,
-          ),
-        ),
-        backgroundColor: kBrandBlack,
-        foregroundColor: Colors.white,
-        elevation: 8,
-        shadowColor: Colors.black26,
-        surfaceTintColor: Colors.transparent,
-        centerTitle: false,
-      ),
-      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: firestore
-            .collection('tracking_sessions')
-            .doc(sessionId)
-            .collection('points')
-            .orderBy('timestamp')
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return Padding(
-              padding: const EdgeInsets.all(16),
-              child: ErrorStateWidget(
-                message: 'Unable to load route map.\n${snapshot.error}',
-                onAction: () => Navigator.of(context).pop(),
-                actionLabel: 'Back',
-              ),
-            );
-          }
-          if (!snapshot.hasData) {
-            return const _HomeDetailLoadingState();
-          }
-
-          final points = snapshot.data!.docs
-              .map((doc) {
-                final data = doc.data();
-                final lat = (data['latitude'] as num?)?.toDouble();
-                final lon = (data['longitude'] as num?)?.toDouble();
-                if (lat == null || lon == null) {
-                  return null;
-                }
-                return LatLng(lat, lon);
-              })
-              .whereType<LatLng>()
-              .toList(growable: false);
-
-          final elevations = snapshot.data!.docs
-              .map((doc) {
-                final data = doc.data();
-                final lat = (data['latitude'] as num?)?.toDouble();
-                final lon = (data['longitude'] as num?)?.toDouble();
-                final elevation = (data['elevation'] as num?)?.toDouble() ?? 0.0;
-                if (lat == null || lon == null) {
-                  return null;
-                }
-                return elevation;
-              })
-              .whereType<double>()
-              .toList(growable: false);
-
-          final center = points.isNotEmpty
-              ? points.first
-              : const LatLng(3.1390, 101.6869);
-
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
-            children: [
-              _summaryCard(
-                distanceKm: distanceKm,
-                durationLabel: durationLabel,
-                paceLabel: paceLabel,
-                averageSpeedLabel: averageSpeedLabel,
-                dateLabel: _formatDateTime(startedAt),
-              ),
-              const SizedBox(height: 14),
-              _flyoverCard(
-                context: context,
-                points: points,
-                elevations: elevations,
-                title: '$actorTitle Activity',
-                durationSeconds: durationSeconds,
-                distanceKm: distanceKm,
-              ),
-              const SizedBox(height: 14),
-              AppCard(
-                padding: EdgeInsets.zero,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-                  child: SizedBox(
-                    height: 320,
-                    child: points.isEmpty
-                        ? const EmptyStateWidget(
-                            icon: Icons.route_outlined,
-                            title: 'No route points',
-                            subtitle:
-                                'This activity does not have enough location data to draw a route.',
-                          )
-                        : Stack(
-                            children: [
-                              FlutterMap(
-                                options: MapOptions(
-                                  initialCenter: center,
-                                  initialZoom: 15,
-                                  initialCameraFit: points.length >= 2
-                                      ? CameraFit.bounds(
-                                          bounds: LatLngBounds.fromPoints(points),
-                                          padding: const EdgeInsets.all(28),
-                                        )
-                                      : null,
-                                ),
-                                children: [
-                                  TileLayer(
-                                    urlTemplate: kMapThemeOptions[0].urlTemplate,
-                                    subdomains: kMapThemeOptions[0].subdomains,
-                                    userAgentPackageName: 'com.company.fakestrava',
-                                  ),
-                                  if (points.length >= 2)
-                                    PolylineLayer(
-                                      polylines: _buildSpeedGradientPolylines(
-                                        points,
-                                        durationSeconds,
-                                      ),
-                                    ),
-                                  MarkerLayer(
-                                    markers: [
-                                      if (points.isNotEmpty)
-                                        Marker(
-                                          point: points.first,
-                                          width: 40,
-                                          height: 40,
-                                          child: _routeMarker(
-                                            color: const Color(0xFF2E7D32),
-                                            icon: Icons.play_arrow,
-                                            iconSize: 18,
-                                          ),
-                                        ),
-                                      if (points.length >= 2)
-                                        Marker(
-                                          point: points.last,
-                                          width: 40,
-                                          height: 40,
-                                          child: _routeMarker(
-                                            color: const Color(0xFFC62828),
-                                            icon: Icons.flag,
-                                            iconSize: 16,
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                  RichAttributionWidget(
-                                    attributions: [
-                                      TextSourceAttribution(
-                                        kMapThemeOptions[0].attribution,
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                              Positioned(
-                                top: 12,
-                                left: 12,
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: BackdropFilter(
-                                    filter: ui.ImageFilter.blur(
-                                      sigmaX: 10,
-                                      sigmaY: 10,
-                                    ),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 8,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Colors.black.withValues(alpha: 0.5),
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          const Icon(
-                                            Icons.route,
-                                            color: Colors.white,
-                                            size: 14,
-                                          ),
-                                          const SizedBox(width: 6),
-                                          Text(
-                                            'Route map',
-                                            style: AppTypography.labelSmall.copyWith(
-                                              color: Colors.white70,
-                                              fontSize: 11,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 14),
-               Container(
-                 padding: const EdgeInsets.all(20),
-                 decoration: BoxDecoration(
-                   color: Colors.white,
-                   borderRadius: BorderRadius.circular(24),
-                   border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
-                   boxShadow: [
-                     BoxShadow(
-                       color: Colors.black.withValues(alpha: 0.08),
-                       blurRadius: 20,
-                       offset: const Offset(0, 4),
-                     ),
-                   ],
-                 ),
-                 child: Column(
-                   crossAxisAlignment: CrossAxisAlignment.start,
-                   children: [
-                     Text(
-                       'Details',
-                       style: AppTypography.headingSmall.copyWith(
-                         fontWeight: FontWeight.w800,
-                         color: kBrandBlack,
-                       ),
-                     ),
-                     const SizedBox(height: 14),
-                     Row(
-                       children: [
-                         Expanded(
-                           child: _detailTile(
-                             icon: Icons.schedule,
-                             label: 'Started',
-                             value: _formatDateTime(startedAt),
-                           ),
-                         ),
-                         const SizedBox(width: 12),
-                         Expanded(
-                           child: _detailTile(
-                             icon: Icons.flag,
-                             label: 'Ended',
-                             value: _formatDateTime(endedAt),
-                           ),
-                         ),
-                       ],
-                     ),
-                     const SizedBox(height: 12),
-                     Row(
-                       children: [
-                         Expanded(
-                           child: _detailTile(
-                             icon: Icons.local_fire_department,
-                             label: 'Calories',
-                             value: '${calories.toStringAsFixed(0)} kcal',
-                           ),
-                         ),
-                         const SizedBox(width: 12),
-                         Expanded(
-                           child: _detailTile(
-                             icon: Icons.terrain,
-                             label: 'Elevation',
-                             value: '+${elevation.toStringAsFixed(0)} m',
-                           ),
-                         ),
-                       ],
-                     ),
-                   ],
-                 ),
-               ),
-              const SizedBox(height: 14),
-              _RanTogetherSection(firestore: firestore, sessionId: sessionId),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  List<Polyline> _buildSpeedGradientPolylines(
-    List<LatLng> points,
-    int totalDurationSeconds,
-  ) {
-    if (points.length < 2) return [];
-
-    final polylines = <Polyline>[];
-    final segmentDurationMs =
-        (totalDurationSeconds * 1000) ~/ (points.length - 1);
-
-    for (int i = 0; i < points.length - 1; i++) {
-      final start = points[i];
-      final end = points[i + 1];
-      final speed = _calculateSpeed(start, end, segmentDurationMs);
-      final color = _getSpeedColor(speed);
-
-      polylines.add(
-        Polyline(points: [start, end], strokeWidth: 6, color: color),
-      );
-    }
-
-    return polylines;
-  }
-
-  String _formatDateTime(DateTime? dateTime) {
-    if (dateTime == null) {
-      return '--';
-    }
-    final local = dateTime.toLocal();
-    return '${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')} ${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
-  }
-
-  Widget _summaryCard({
-    required double distanceKm,
-    required String durationLabel,
-    required String paceLabel,
-    required String averageSpeedLabel,
-    required String dateLabel,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Activity summary',
-                style: AppTypography.labelSmall.copyWith(
-                  color: kTextSecondary,
-                  letterSpacing: 0.3,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: kBrandOrange.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  dateLabel,
-                  style: AppTypography.labelSmall.copyWith(
-                    color: kBrandOrange,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(
-                distanceKm.toStringAsFixed(2),
-                style: AppTypography.displayMedium.copyWith(
-                  color: kBrandBlack,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 52,
-                  letterSpacing: -1,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                'km',
-                style: AppTypography.headingSmall.copyWith(
-                  color: kTextSecondary,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Total distance',
-            style: AppTypography.bodySmall.copyWith(
-              color: kTextSecondary,
-              fontSize: 12,
-            ),
-          ),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(
-                child: _summaryStat(
-                  icon: Icons.timer_outlined,
-                  label: 'Duration',
-                  value: durationLabel,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _summaryStat(
-                  icon: Icons.speed,
-                  label: 'Pace',
-                  value: paceLabel,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _summaryStat(
-                  icon: Icons.bolt,
-                  label: 'Avg speed',
-                  value: averageSpeedLabel,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _summaryStat({
-    required IconData icon,
-    required String label,
-    required String value,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-      decoration: BoxDecoration(
-        color: kBrandOrange.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: kBrandOrange.withValues(alpha: 0.12),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 14, color: kBrandOrange),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: AppTypography.labelSmall.copyWith(
-                  color: kTextSecondary,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: AppTypography.headingSmall.copyWith(
-              color: kBrandBlack,
-              fontWeight: FontWeight.w800,
-              fontSize: 12,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _flyoverCard({
-    required BuildContext context,
-    required List<LatLng> points,
-    required List<double>? elevations,
-    required String title,
-    required int durationSeconds,
-    required double distanceKm,
-  }) {
-    final hasRoute = points.length >= 2;
-    final hasStyle = kResolvedMapStyleUrl.isNotEmpty;
-    final canFlyover = hasRoute && hasStyle;
-    final subtitle = !hasRoute
-        ? 'Not enough route data to replay yet.'
-        : !hasStyle
-            ? 'Add a MapTiler key or style URL to enable 3D replay.'
-            : 'Cinematic replay that follows your route.';
-    final buttonLabel = canFlyover
-        ? 'Play 3D flyover'
-        : hasStyle
-            ? 'Route too short'
-            : 'Key required';
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(
-                  color: kBrandOrange.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(
-                  Icons.threed_rotation_rounded,
-                  color: kBrandOrange,
-                  size: 26,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '3D flyover replay',
-                      style: AppTypography.headingSmall.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: kBrandBlack,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: AppTypography.bodySmall.copyWith(
-                        color: kTextSecondary,
-                        height: 1.3,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: canFlyover
-                  ? () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => buildFlyoverReplayPage(
-                            points: points,
-                            title: title,
-                            elevations: elevations,
-                            durationSeconds: durationSeconds,
-                            distanceKm: distanceKm,
-                          ),
-                        ),
-                      );
-                    }
-                  : null,
-              icon: const Icon(Icons.play_arrow_rounded),
-              label: Text(buttonLabel),
-              style: FilledButton.styleFrom(
-                backgroundColor: kBrandBlack,
-                foregroundColor: Colors.white,
-                disabledBackgroundColor: Colors.grey.withValues(alpha: 0.2),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _detailTile({
-    required IconData icon,
-    required String label,
-    required String value,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: kBrandOrange.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 14, color: kBrandOrange),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: AppTypography.labelSmall.copyWith(
-                  color: kTextSecondary,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: AppTypography.bodyMedium.copyWith(
-              color: kBrandBlack,
-              fontWeight: FontWeight.w700,
-              fontSize: 12,
-            ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _routeMarker({
-    required Color color,
-    required IconData icon,
-    required double iconSize,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white, width: 3),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 8),
-        ],
-      ),
-      child: Icon(icon, color: Colors.white, size: iconSize),
     );
   }
 }
@@ -1932,179 +649,6 @@ class _SearchLoadingState extends StatelessWidget {
       itemBuilder: (_, _) => const SkeletonCard(height: 70),
       separatorBuilder: (_, _) => const SizedBox(height: 10),
       itemCount: 4,
-    );
-  }
-}
-
-class _HomeDetailLoadingState extends StatelessWidget {
-  const _HomeDetailLoadingState();
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: const [
-        SkeletonCard(height: 300),
-        SizedBox(height: 14),
-        SkeletonCard(height: 120),
-        SizedBox(height: 14),
-        SkeletonCard(height: 120),
-      ],
-    );
-  }
-}
-
-/// Widget to display runners who ran concurrently (from "Ran with you" records)
-class _RanTogetherSection extends StatelessWidget {
-  const _RanTogetherSection({required this.firestore, required this.sessionId});
-
-  final FirebaseFirestore firestore;
-  final String sessionId;
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      future: firestore
-          .collection('tracking_sessions')
-          .doc(sessionId)
-          .collection('concurrent_runners')
-          .get(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return const SizedBox.shrink();
-        }
-
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const SizedBox.shrink();
-        }
-
-        final concurrentRunners = snapshot.data!.docs;
-
-        return Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.06),
-                blurRadius: 12,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.people, size: 20, color: kBrandOrange),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'Ran with you',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    '${concurrentRunners.length}',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black54,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              ListView.separated(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: concurrentRunners.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 8),
-                itemBuilder: (context, index) {
-                  final doc = concurrentRunners[index];
-                  final data = doc.data();
-                  final displayName =
-                      data['concurrentUserDisplayName'] as String? ??
-                      'Unknown Runner';
-                  final overlapKm =
-                      (data['overlapDistanceKm'] as num?)?.toDouble() ?? 0;
-                  final timeTogetherSeconds =
-                      (data['timeTogetherSeconds'] as num?)?.toInt() ?? 0;
-                  final duration = Duration(seconds: timeTogetherSeconds);
-                  final durationStr =
-                      '${duration.inMinutes.remainder(60).toString().padLeft(2, '0')}:${duration.inSeconds.remainder(60).toString().padLeft(2, '0')}';
-
-                  return Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[50],
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: Colors.black.withValues(alpha: 0.05),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 16,
-                          backgroundColor: kBrandOrange,
-                          foregroundColor: Colors.white,
-                          child: Text(
-                            displayName.isNotEmpty
-                                ? displayName[0].toUpperCase()
-                                : 'R',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                displayName,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 13,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                              Text(
-                                '${overlapKm.toStringAsFixed(1)} km • $durationStr',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.black54,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const Icon(
-                          Icons.favorite_border,
-                          size: 18,
-                          color: kBrandOrange,
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-        );
-      },
     );
   }
 }

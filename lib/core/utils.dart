@@ -55,6 +55,24 @@ String formatSessionDuration(
   return '0:00';
 }
 
+/// Null if [value] is not a finite WGS84 latitude in range [-90, 90].
+double? sanitizeLatitude(double? value) {
+  if (value == null || !value.isFinite || value.abs() > 90.0) return null;
+  return value;
+}
+
+/// Null if [value] is not a finite WGS84 longitude in range [-180, 180].
+double? sanitizeLongitude(double? value) {
+  if (value == null || !value.isFinite || value.abs() > 180.0) return null;
+  return value;
+}
+
+/// Whether both coordinates are safe for maps and [LatLng] (no NaN/Infinity).
+bool isValidWgs84(double latitude, double longitude) {
+  return sanitizeLatitude(latitude) != null &&
+      sanitizeLongitude(longitude) != null;
+}
+
 /// Spatio-Temporal Matching Utilities
 
 /// Generates a geohash-like string from latitude and longitude

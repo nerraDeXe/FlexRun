@@ -1,0 +1,9 @@
+{
+    "cmake.sourceDirectory": "C:/Users/LIM TZE TA/VSCodeProjects/FlexRun/linux",
+    "dart.flutterRunAdditionalArgs": [
+        "--dart-define-from-file=dart_defines.json"
+    ],
+    "dart.flutterTestAdditionalArgs": [
+        "--dart-define-from-file=dart_defines.json"
+    ]
+}
