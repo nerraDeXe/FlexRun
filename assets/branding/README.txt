@@ -1,5 +1,12 @@
 Branding assets (SVG, PNG, etc.)
 
+App icon + native splash:
+  Files:  app_icon.png (launcher icon), app_icon_small.png (splash center image)
+  Used by: flutter_launcher_icons (app_icon.png), flutter_native_splash (app_icon_small.png).
+  Replace this file with your final artwork, then run:
+    dart run flutter_launcher_icons
+    dart run flutter_native_splash:create
+
 Login / sign-up wordmark:
   File:   login_wordmark.svg
   Used in: lib/auth/pages/login_page.dart (constant kLoginWordmarkAsset)
