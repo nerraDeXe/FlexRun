@@ -111,6 +111,7 @@ class SocialRepository {
     required String currentUserId,
     required bool like,
     required String displayName,
+    required String userId,
   }) async {
     final ref = _firestore
         .collection('tracking_sessions')

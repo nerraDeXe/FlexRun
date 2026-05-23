@@ -99,7 +99,10 @@ class _FlyoverReplayPageState extends State<_FlyoverReplayPage> {
   List<double> _calculateCumulativeDistances() {
     final distances = <double>[0.0];
     for (int i = 1; i < _replayPoints.length; i++) {
-      final distance = _haversineDistance(_replayPoints[i - 1], _replayPoints[i]);
+      final distance = _haversineDistance(
+        _replayPoints[i - 1],
+        _replayPoints[i],
+      );
       distances.add(distances.last + distance);
     }
     return distances;
@@ -110,8 +113,12 @@ class _FlyoverReplayPageState extends State<_FlyoverReplayPage> {
     final lat2 = end.latitude * math.pi / 180;
     final dLat = (end.latitude - start.latitude) * math.pi / 180;
     final dLon = (end.longitude - start.longitude) * math.pi / 180;
-    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
-        math.cos(lat1) * math.cos(lat2) * math.sin(dLon / 2) * math.sin(dLon / 2);
+    final a =
+        math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(lat1) *
+            math.cos(lat2) *
+            math.sin(dLon / 2) *
+            math.sin(dLon / 2);
     final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
     return (_earthRadiusMeters * c) / _metersPerKm;
   }
@@ -128,7 +135,8 @@ class _FlyoverReplayPageState extends State<_FlyoverReplayPage> {
     if (widget.distanceKm <= 0 || widget.durationSeconds <= 0) {
       return '--:--';
     }
-    final paceMinutesPerKm = (widget.durationSeconds / 60.0) / widget.distanceKm;
+    final paceMinutesPerKm =
+        (widget.durationSeconds / 60.0) / widget.distanceKm;
     final minutes = paceMinutesPerKm.toInt();
     final seconds = ((paceMinutesPerKm - minutes) * 60).toInt();
     return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
@@ -365,8 +373,14 @@ class _FlyoverReplayPageState extends State<_FlyoverReplayPage> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    _buildStatColumn('Distance', '${_formatDistance(currentDistance)} km'),
-                    _buildStatColumn('Elevation', '${_formatElevation(currentElevation)} m'),
+                    _buildStatColumn(
+                      'Distance',
+                      '${_formatDistance(currentDistance)} km',
+                    ),
+                    _buildStatColumn(
+                      'Elevation',
+                      '${_formatElevation(currentElevation)} m',
+                    ),
                     _buildStatColumn('Pace', '$pace /km'),
                   ],
                 ),
