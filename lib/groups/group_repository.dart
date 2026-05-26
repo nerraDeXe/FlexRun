@@ -162,4 +162,132 @@ class GroupRepository {
 
     return query.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
   }
+
+  // --- Group Posts & Comments ---
+
+  Future<String> createPost({
+    required String groupId,
+    required String creatorId,
+    required String description,
+    DateTime? scheduledTime,
+    String? location,
+    double? locationLat,
+    double? locationLng,
+  }) async {
+    final docRef = await _firestore.collection('group_posts').add({
+      'groupId': groupId,
+      'creatorId': creatorId,
+      'description': description.trim(),
+      'scheduledTime': scheduledTime != null ? Timestamp.fromDate(scheduledTime) : null,
+      'location': location?.trim(),
+      'locationLat': locationLat,
+      'locationLng': locationLng,
+      'createdAt': FieldValue.serverTimestamp(),
+      'rsvps': [creatorId], // Creator automatically RSVPs
+      'status': scheduledTime != null ? 'upcoming' : 'completed',
+    });
+    return docRef.id;
+  }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> getPostsStream(String groupId) {
+    return _firestore
+        .collection('group_posts')
+        .where('groupId', isEqualTo: groupId)
+        .orderBy('createdAt', descending: true)
+        .snapshots();
+  }
+
+  Future<void> toggleRsvp({
+    required String postId,
+    required String userId,
+    required bool isGoing,
+  }) async {
+    final postRef = _firestore.collection('group_posts').doc(postId);
+    if (isGoing) {
+      await postRef.update({
+        'rsvps': FieldValue.arrayUnion([userId]),
+      });
+    } else {
+      await postRef.update({
+        'rsvps': FieldValue.arrayRemove([userId]),
+      });
+    }
+  }
+
+  Future<String> createComment({
+    required String postId,
+    required String authorId,
+    required String text,
+    String? replyToId,
+  }) async {
+    final docRef = await _firestore.collection('group_comments').add({
+      'postId': postId,
+      'authorId': authorId,
+      'text': text.trim(),
+      'replyToId': replyToId,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+    return docRef.id;
+  }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> getCommentsStream(String postId) {
+    return _firestore
+        .collection('group_comments')
+        .where('postId', isEqualTo: postId)
+        .snapshots();
+  }
+
+  Future<void> deletePost({
+    required String postId,
+    required String userId,
+  }) async {
+    final postRef = _firestore.collection('group_posts').doc(postId);
+    final postSnap = await postRef.get();
+    if (!postSnap.exists) {
+      throw StateError('Post not found.');
+    }
+    final creatorId = postSnap.data()?['creatorId'] as String?;
+    if (creatorId != userId) {
+      throw StateError('You can only delete your own posts.');
+    }
+
+    final commentsQuery = await _firestore
+        .collection('group_comments')
+        .where('postId', isEqualTo: postId)
+        .get();
+
+    final batch = _firestore.batch();
+    for (final doc in commentsQuery.docs) {
+      batch.delete(doc.reference);
+    }
+    await batch.commit();
+  }
+
+  Future<void> removeMemberFromGroup({
+    required String groupId,
+    required String userId,
+  }) async {
+    await _firestore.collection('groups').doc(groupId).update({
+      'memberIds': FieldValue.arrayRemove([userId]),
+      'adminIds': FieldValue.arrayRemove([userId]),
+    });
+  }
+
+  Future<void> assignAdminRole({
+    required String groupId,
+    required String userId,
+  }) async {
+    await _firestore.collection('groups').doc(groupId).update({
+      'adminIds': FieldValue.arrayUnion([userId]),
+    });
+  }
+
+  Future<void> revokeAdminRole({
+    required String groupId,
+    required String userId,
+  }) async {
+    await _firestore.collection('groups').doc(groupId).update({
+      'adminIds': FieldValue.arrayRemove([userId]),
+    });
+  }
 }

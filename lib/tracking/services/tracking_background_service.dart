@@ -512,15 +512,19 @@ Future<void> _onServiceStart(ServiceInstance service) async {
     }
 
     if (sessionId != null) {
-      await repository.closeSession(
-        sessionId: sessionId!,
-        endedAt: DateTime.now().toUtc(),
-        distanceMeters: distanceMeters,
-        elevationGainMeters: elevationGainMeters,
-        caloriesKcal: caloriesKcal,
-        elapsedSeconds: accumulatedActiveSeconds,
-        points: points,
-      );
+      try {
+        await repository.closeSession(
+          sessionId: sessionId!,
+          endedAt: DateTime.now().toUtc(),
+          distanceMeters: distanceMeters,
+          elevationGainMeters: elevationGainMeters,
+          caloriesKcal: caloriesKcal,
+          elapsedSeconds: accumulatedActiveSeconds,
+          points: points,
+        );
+      } catch (e) {
+        debugPrint('Error closing session: $e');
+      }
     }
 
     sessionId = null;

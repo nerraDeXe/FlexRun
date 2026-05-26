@@ -5,7 +5,6 @@ import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:geolocator/geolocator.dart';
@@ -16,7 +15,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:fake_strava/tracking/models/tracking_snapshot.dart';
 import 'package:fake_strava/tracking/services/tracking_background_service.dart';
-import 'package:fake_strava/tracking/services/bluetooth_hr_service.dart';
 import 'package:fake_strava/tracking/services/concurrent_runner_service.dart';
 import 'package:fake_strava/core/theme.dart';
 import 'package:fake_strava/core/ui_components.dart';
@@ -114,14 +112,12 @@ class _TrackingHomePageState extends State<TrackingHomePage>
     with SingleTickerProviderStateMixin {
   static const LatLng _defaultCenter = LatLng(3.1390, 101.6869);
   final TrackingBackgroundService _service = TrackingBackgroundService();
-  final BluetoothHRService _hrService = BluetoothHRService();
   late final ConcurrentRunnerService _concurrentRunnerService;
   final MapController _mapController = MapController();
   final FlutterTts _tts = FlutterTts();
   final List<LatLng> _routePoints = <LatLng>[];
   StreamSubscription<TrackingSnapshot>? _snapshotSubscription;
   StreamSubscription<Position>? _foregroundPositionSubscription;
-  StreamSubscription<int>? _hrSubscription;
   Timer? _voiceTimer;
   Timer? _liveMetricsTimer;
   Timer? _finishHoldTimer;
@@ -158,8 +154,6 @@ class _TrackingHomePageState extends State<TrackingHomePage>
   double _panelLayoutTopInset = 0;
   double _panelLayoutBottomInset = 0;
   int _mapThemeIndex = 0;
-  int _currentHeartRate = 0;
-  final List<int> _heartRateReadings = <int>[];
   bool _ghostMode = false; // Privacy mode - don't show location to others
   double _currentBearing = 0; // Direction of travel
 
@@ -177,7 +171,6 @@ class _TrackingHomePageState extends State<TrackingHomePage>
     _hydrateState();
     _startForegroundPointerStream();
     _setupVoicePace();
-    _setupHRMonitoring();
     _snapshotSubscription = _service.updates.listen((
       TrackingSnapshot snapshot,
     ) {
@@ -209,8 +202,6 @@ class _TrackingHomePageState extends State<TrackingHomePage>
           _activeRouteSessionId = null;
           _lastTrackedPoint = null;
           _routePoints.clear();
-          _currentHeartRate = 0;
-          _heartRateReadings.clear();
           if (!_hasLiveLocationFix) {
             _currentPosition = null;
             _mapCenter = _defaultCenter;
@@ -233,14 +224,12 @@ class _TrackingHomePageState extends State<TrackingHomePage>
   void dispose() {
     _snapshotSubscription?.cancel();
     _foregroundPositionSubscription?.cancel();
-    _hrSubscription?.cancel();
     _finishHoldTimer?.cancel();
     _concurrentRunnerDiscoveryTimer?.cancel();
     _stopVoiceAnnouncements();
     _stopLiveMetricsTimer();
     _stopConcurrentRunnerDiscovery();
     _tts.stop();
-    _hrService.dispose();
     _panelController.dispose();
     super.dispose();
   }
@@ -248,18 +237,6 @@ class _TrackingHomePageState extends State<TrackingHomePage>
   Future<void> _setupVoicePace() async {
     await _tts.setLanguage('en-US');
     await _tts.setSpeechRate(0.42);
-  }
-
-  void _setupHRMonitoring() {
-    _hrSubscription?.cancel();
-    _hrSubscription = _hrService.hrValueStream.listen((heartRate) {
-      if (mounted && _isTracking) {
-        setState(() {
-          _currentHeartRate = heartRate;
-          _heartRateReadings.add(heartRate);
-        });
-      }
-    });
   }
 
   void _startVoiceAnnouncements() {
@@ -1111,126 +1088,6 @@ class _TrackingHomePageState extends State<TrackingHomePage>
     return panelHeight + chrome;
   }
 
-  Future<void> _showHRDeviceSelector() async {
-    final permitted = await _hrService.requestPermissions();
-    if (!permitted) {
-      if (mounted) {
-        AppNotification.show(
-          context: context,
-          message: 'Bluetooth permissions required',
-          type: NotificationType.error,
-        );
-      }
-      return;
-    }
-
-    if (!mounted) return;
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => _buildHRDevicePicker(),
-    );
-  }
-
-  Widget _buildHRDevicePicker() {
-    return StatefulBuilder(
-      builder: (context, setState) {
-        return StreamBuilder<List<ScanResult>>(
-          stream: _hrService.scanForDevices().asBroadcastStream(),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(16),
-                  child: CircularProgressIndicator(),
-                ),
-              );
-            }
-
-            final devices = snapshot.data ?? [];
-            if (devices.isEmpty) {
-              return Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      'No Bluetooth devices found',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    if (_hrService.isConnected)
-                      ElevatedButton(
-                        onPressed: () async {
-                          await _hrService.disconnect();
-                          if (mounted) {
-                            setState(() {});
-                            if (mounted) {
-                              Navigator.of(mounted ? context : context).pop();
-                            }
-                          }
-                        },
-                        child: const Text('Disconnect'),
-                      ),
-                  ],
-                ),
-              );
-            }
-
-            return ListView.builder(
-              shrinkWrap: true,
-              itemCount: devices.length,
-              itemBuilder: (context, index) {
-                final device = devices[index];
-                final isConnected =
-                    _hrService.connectedDevice?.remoteId ==
-                    device.device.remoteId;
-
-                return ListTile(
-                  title: Text(
-                    device.device.platformName.isEmpty
-                        ? 'Unknown Device'
-                        : device.device.platformName,
-                  ),
-                  subtitle: Text(device.device.remoteId.str),
-                  trailing: isConnected
-                      ? const Icon(Icons.check, color: Colors.green)
-                      : null,
-                  onTap: isConnected
-                      ? null
-                      : () async {
-                          final nav = Navigator.of(context);
-                          final scaffold = ScaffoldMessenger.of(context);
-                          final success = await _hrService.connectToDevice(
-                            device.device,
-                          );
-                          if (mounted) {
-                            if (success) {
-                              scaffold.showSnackBar(
-                                const SnackBar(
-                                  content: Text('Connected to HR monitor'),
-                                ),
-                              );
-                              nav.pop();
-                            } else {
-                              scaffold.showSnackBar(
-                                const SnackBar(
-                                  content: Text('Failed to connect to device'),
-                                ),
-                              );
-                            }
-                          }
-                        },
-                );
-              },
-            );
-          },
-        );
-      },
-    );
-  }
 
   /// Start / Pause / Finish — used in a floating bar above the stats sheet.
   Widget _buildFloatingTrackingControls() {
@@ -1546,15 +1403,6 @@ class _TrackingHomePageState extends State<TrackingHomePage>
                                 ),
                                 const SizedBox(width: 4),
                                 _buildIconGlassButton(
-                                  icon: Icons.favorite,
-                                  onTap: _showHRDeviceSelector,
-                                  tooltip: _hrService.isConnected
-                                      ? 'HR Monitor Connected'
-                                      : 'Connect HR Monitor',
-                                  active: _hrService.isConnected,
-                                ),
-                                const SizedBox(width: 4),
-                                _buildIconGlassButton(
                                   icon: _ghostMode
                                       ? Icons.visibility_off
                                       : Icons.visibility,
@@ -1858,37 +1706,6 @@ class _TrackingHomePageState extends State<TrackingHomePage>
                                                             : '--',
                                                         unit: 'km/h',
                                                         icon: Icons.flash_on,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                                const SizedBox(height: 8),
-                                                Row(
-                                                  children: [
-                                                    Expanded(
-                                                      child: MetricCard(
-                                                        label: 'Current HR',
-                                                        value:
-                                                            _currentHeartRate >
-                                                                0
-                                                            ? '$_currentHeartRate'
-                                                            : '--',
-                                                        unit: 'bpm',
-                                                        icon: Icons.favorite,
-                                                      ),
-                                                    ),
-                                                    const SizedBox(width: 8),
-                                                    Expanded(
-                                                      child: MetricCard(
-                                                        label: 'Avg HR',
-                                                        value:
-                                                            _heartRateReadings
-                                                                .isNotEmpty
-                                                            ? '${((_heartRateReadings.fold<int>(0, (a, b) => a + b) / _heartRateReadings.length)).round()}'
-                                                            : '--',
-                                                        unit: 'bpm',
-                                                        icon: Icons
-                                                            .favorite_outline,
                                                       ),
                                                     ),
                                                   ],

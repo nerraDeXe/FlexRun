@@ -2,7 +2,6 @@
 library;
 
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -330,6 +329,27 @@ class _HeroStatsCard extends StatelessWidget {
     return weekdays[weekday - 1];
   }
 
+  String _cleanDurationLabel(String label) {
+    final parts = label.split(' ');
+    String h = '0';
+    String m = '0';
+    String s = '0';
+    for (final part in parts) {
+      if (part.contains('h')) {
+        h = part.replaceAll('h', '');
+      } else if (part.contains('m')) {
+        m = part.replaceAll('m', '');
+      } else if (part.contains('s')) {
+        s = part.replaceAll('s', '');
+      }
+    }
+    if (h != '0') {
+      return '$h:${m.padLeft(2, '0')}:${s.padLeft(2, '0')}';
+    } else {
+      return '$m:${s.padLeft(2, '0')}';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final date = startedAt?.toLocal();
@@ -422,30 +442,31 @@ class _HeroStatsCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _HeroStatItem(
-                  value: distanceKm.toStringAsFixed(2),
-                  unit: 'km',
-                  label: 'Distance',
+                Expanded(
+                  child: _HeroStatItem(
+                    value: distanceKm.toStringAsFixed(2),
+                    unit: 'km',
+                    label: 'Distance',
+                  ),
                 ),
                 Container(width: 1, height: 50, color: Colors.white24),
-                _HeroStatItem(
-                  value: paceLabel.split(':')[0],
-                  unit: 'min/km',
-                  label: 'Pace',
-                  secondary: paceLabel.contains(':')
-                      ? ':${paceLabel.split(':')[1]}'
-                      : '',
+                Expanded(
+                  child: _HeroStatItem(
+                    value: paceLabel.split(':')[0],
+                    unit: 'min/km',
+                    label: 'Pace',
+                    secondary: paceLabel.contains(':')
+                        ? ':${paceLabel.split(':')[1]}'
+                        : '',
+                  ),
                 ),
                 Container(width: 1, height: 50, color: Colors.white24),
-                _HeroStatItem(
-                  value: durationLabel
-                      .split(' ')
-                      .firstWhere((e) => e.contains('h'), orElse: () => '0'),
-                  unit: 'time',
-                  label: 'Duration',
-                  secondary: durationLabel
-                      .replaceAll(RegExp(r'\d+h'), '')
-                      .trim(),
+                Expanded(
+                  child: _HeroStatItem(
+                    value: _cleanDurationLabel(durationLabel),
+                    unit: durationLabel.contains('h') ? 'hr' : 'min',
+                    label: 'Duration',
+                  ),
                 ),
               ],
             ),
@@ -472,40 +493,47 @@ class _HeroStatItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.baseline,
-          textBaseline: TextBaseline.alphabetic,
-          children: [
-            Text(
-              value,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 32,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.5,
-              ),
-            ),
-            if (secondary.isNotEmpty) ...[
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.center,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
               Text(
-                secondary,
+                value,
                 style: const TextStyle(
-                  color: Colors.white70,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                  fontSize: 32,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              if (secondary.isNotEmpty) ...[
+                Text(
+                  secondary,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+              const SizedBox(width: 4),
+              Text(
+                unit,
+                style: const TextStyle(
+                  color: Colors.white54,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ],
-            const SizedBox(width: 4),
-            Text(
-              unit,
-              style: const TextStyle(
-                color: Colors.white54,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
+          ),
         ),
         const SizedBox(height: 4),
         Text(
@@ -516,6 +544,7 @@ class _HeroStatItem extends StatelessWidget {
             fontWeight: FontWeight.w500,
             letterSpacing: 0.5,
           ),
+          textAlign: TextAlign.center,
         ),
       ],
     );
@@ -552,7 +581,7 @@ class _QuickStatsGrid extends StatelessWidget {
       crossAxisCount: 5,
       mainAxisSpacing: 8,
       crossAxisSpacing: 8,
-      childAspectRatio: 1.0,
+      childAspectRatio: 0.82,
       children: [
         _QuickStat(
           icon: Icons.local_fire_department,
@@ -616,36 +645,41 @@ class _QuickStat extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10),
+      padding: const EdgeInsets.all(4),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.center,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, size: 18, color: color),
             ),
-            child: Icon(icon, size: 18, color: color),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: TextStyle(
-              color: kBrandBlack,
-              fontSize: 14,
-              fontWeight: FontWeight.w800,
+            const SizedBox(height: 6),
+            Text(
+              value,
+              style: TextStyle(
+                color: kBrandBlack,
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
-            overflow: TextOverflow.ellipsis,
-          ),
-          Text(
-            unit,
-            style: TextStyle(
-              color: kTextSecondary,
-              fontSize: 9,
-              fontWeight: FontWeight.w500,
+            Text(
+              unit,
+              style: TextStyle(
+                color: kTextSecondary,
+                fontSize: 9,
+                fontWeight: FontWeight.w500,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

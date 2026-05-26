@@ -6,6 +6,7 @@ import 'package:fake_strava/core/theme.dart';
 import 'package:fake_strava/groups/create_group_page.dart';
 import 'package:fake_strava/groups/group_detail_page.dart';
 import 'package:fake_strava/groups/group_repository.dart';
+import 'package:fake_strava/groups/widgets/group_timeline_tab.dart';
 
 class GroupsPage extends StatelessWidget {
   const GroupsPage({super.key});
@@ -22,20 +23,57 @@ class GroupsPage extends StatelessWidget {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('My Groups'),
-          bottom: const TabBar(
-            tabs: [
-              Tab(text: 'Pending'),
-              Tab(text: "Groups You're In"),
+        backgroundColor: kSurface,
+        body: SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+                child: const _GroupsPageHeader(),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Container(
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade200,
+                    borderRadius: BorderRadius.circular(22),
+                  ),
+                  child: TabBar(
+                    indicatorSize: TabBarIndicatorSize.tab,
+                    dividerColor: Colors.transparent,
+                    indicator: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(22),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.05),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    labelColor: Colors.black,
+                    unselectedLabelColor: Colors.grey.shade600,
+                    labelStyle: const TextStyle(fontWeight: FontWeight.bold),
+                    tabs: const [
+                      Tab(text: "Groups You're In"),
+                      Tab(text: 'Pending'),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: TabBarView(
+                  children: [
+                    _MyGroupsTab(repo: repo, userId: user.uid),
+                    _PendingInvitesTab(repo: repo, userId: user.uid),
+                  ],
+                ),
+              ),
             ],
           ),
-        ),
-        body: TabBarView(
-          children: [
-            _PendingInvitesTab(repo: repo, userId: user.uid),
-            _MyGroupsTab(repo: repo, userId: user.uid),
-          ],
         ),
         floatingActionButton: FloatingActionButton.extended(
           onPressed: () {
@@ -51,6 +89,69 @@ class GroupsPage extends StatelessWidget {
             style: TextStyle(fontWeight: FontWeight.bold),
           ),
         ),
+      ),
+    );
+  }
+}
+
+BoxDecoration _groupGlowCardDecoration({Color accent = kBrandOrange}) {
+  return BoxDecoration(
+    color: kSurfaceCard,
+    borderRadius: BorderRadius.circular(20),
+    border: Border.all(
+      color: accent.withValues(alpha: 0.12),
+      width: 1.2,
+    ),
+    boxShadow: [
+      BoxShadow(
+        color: accent.withValues(alpha: 0.06),
+        blurRadius: 14,
+        offset: const Offset(0, 2),
+      ),
+    ],
+  );
+}
+
+class _GroupsPageHeader extends StatelessWidget {
+  const _GroupsPageHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            kBrandOrange.withValues(alpha: 0.08),
+            Colors.white,
+          ],
+        ),
+        border: Border(
+          bottom: BorderSide(
+            color: Colors.black.withValues(alpha: 0.06),
+          ),
+        ),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Community',
+              style: AppTypography.displaySmall.copyWith(
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.5,
+              ),
+            ),
+          ),
+          const Icon(
+            Icons.groups_rounded,
+            color: kBrandOrange,
+            size: 32,
+          ),
+        ],
       ),
     );
   }
@@ -90,23 +191,24 @@ class _MyGroupsTab extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
-                    Icons.group_outlined,
-                    size: 64,
-                    color: Colors.grey[400],
+                    Icons.groups_outlined,
+                    size: 80,
+                    color: Colors.grey.shade300,
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 24),
                   Text(
                     'No Groups Yet',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey[600],
+                    style: AppTypography.headingLarge.copyWith(
+                      color: Colors.black87,
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'Create a group to connect with others and share activities.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey[500]),
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: Colors.grey.shade600,
+                    ),
                   ),
                 ],
               ),
@@ -115,64 +217,99 @@ class _MyGroupsTab extends StatelessWidget {
         }
 
         return ListView.separated(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
           itemCount: docs.length,
-          separatorBuilder: (_, _) => const SizedBox(height: 12),
+          separatorBuilder: (_, _) => const SizedBox(height: 16),
           itemBuilder: (context, index) {
             final doc = docs[index];
             final data = doc.data();
             final name = data['name'] as String? ?? 'Unnamed Group';
+            final description = data['description'] as String? ?? '';
             final membersCount = (data['memberIds'] as List?)?.length ?? 0;
 
-            return Card(
-              child: InkWell(
-                borderRadius: BorderRadius.circular(16),
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          GroupDetailPage(groupId: doc.id, groupData: data),
+            return Container(
+              decoration: _groupGlowCardDecoration(),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(20),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            GroupDetailPage(groupId: doc.id, groupData: data),
+                      ),
+                    );
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 56,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [kBrandOrange, kBrandBlack],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: kBrandOrange.withValues(alpha: 0.3),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(Icons.group, color: Colors.white, size: 28),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                name,
+                                style: AppTypography.bodyLarge.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.black.withValues(alpha: 0.88),
+                                ),
+                              ),
+                              if (description.isNotEmpty) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  description,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: AppTypography.bodySmall.copyWith(
+                                    color: Colors.black.withValues(alpha: 0.52),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(height: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: kBrandOrange.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  '$membersCount member${membersCount == 1 ? '' : 's'}',
+                                  style: AppTypography.captionSmall.copyWith(
+                                    color: kBrandOrange,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.chevron_right, color: kTextTertiary),
+                      ],
                     ),
-                  );
-                },
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: kBrandOrange.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(Icons.group, color: kBrandOrange),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              name,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '$membersCount member${membersCount == 1 ? '' : 's'}',
-                              style: TextStyle(
-                                color: Colors.grey[600],
-                                fontSize: 13,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Icon(Icons.chevron_right, color: Colors.grey),
-                    ],
                   ),
                 ),
               ),
@@ -272,22 +409,23 @@ class _PendingInvitesTabState extends State<_PendingInvitesTab> {
                 children: [
                   Icon(
                     Icons.mail_outline,
-                    size: 64,
-                    color: Colors.grey[400],
+                    size: 80,
+                    color: Colors.grey.shade300,
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 24),
                   Text(
                     'No Pending Invitations',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey[600],
+                    style: AppTypography.headingLarge.copyWith(
+                      color: Colors.black87,
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'When someone invites you to a group, it will show up here.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey[500]),
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: Colors.grey.shade600,
+                    ),
                   ),
                 ],
               ),
@@ -295,9 +433,10 @@ class _PendingInvitesTabState extends State<_PendingInvitesTab> {
           );
         }
 
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
+        return ListView.separated(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
           itemCount: invites.length,
+          separatorBuilder: (_, _) => const SizedBox(height: 16),
           itemBuilder: (context, index) {
             final inviteDoc = invites[index];
             final inviteData = inviteDoc.data();
@@ -309,76 +448,120 @@ class _PendingInvitesTabState extends State<_PendingInvitesTab> {
               return const SizedBox.shrink();
             }
 
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                future: _groupDocFuture(groupId),
-                builder: (context, groupSnapshot) {
-                  if (groupSnapshot.connectionState == ConnectionState.waiting) {
-                    return const Card(
-                      child: Padding(
-                        padding: EdgeInsets.all(20),
-                        child: Center(child: CircularProgressIndicator()),
-                      ),
-                    );
-                  }
+            return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+              future: _groupDocFuture(groupId),
+              builder: (context, groupSnapshot) {
+                if (groupSnapshot.connectionState == ConnectionState.waiting) {
+                  return Container(
+                    decoration: _groupGlowCardDecoration(accent: Colors.grey),
+                    padding: const EdgeInsets.all(20),
+                    child: const Center(child: CircularProgressIndicator()),
+                  );
+                }
 
-                  final groupData = groupSnapshot.data?.data();
-                  final groupName =
-                      groupData?['name'] as String? ?? 'Unknown Group';
+                final groupData = groupSnapshot.data?.data();
+                final groupName =
+                    groupData?['name'] as String? ?? 'Unknown Group';
+                final invitedBy = inviteData['invitedBy'] as String? ?? 'Someone';
 
-                  return Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            groupName,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
+                return Container(
+                  decoration: _groupGlowCardDecoration(accent: kInfo),
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              width: 48,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                color: kInfo.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(Icons.mail, color: kInfo),
                             ),
-                          ),
-                          const SizedBox(height: 10),
-                          Row(
-                            children: [
-                              OutlinedButton(
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    groupName,
+                                    style: AppTypography.bodyLarge.copyWith(
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.black.withValues(alpha: 0.88),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Invited by $invitedBy',
+                                    style: AppTypography.bodySmall.copyWith(
+                                      color: Colors.black.withValues(alpha: 0.52),
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
                                 onPressed: isProcessing
                                     ? null
                                     : () => _respondToInvite(
                                           invitationId: invitationId,
                                           accept: false,
                                         ),
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
                                 child: const Text('Decline'),
                               ),
-                              const SizedBox(width: 8),
-                              FilledButton(
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: FilledButton(
                                 onPressed: isProcessing
                                     ? null
                                     : () => _respondToInvite(
                                           invitationId: invitationId,
                                           accept: true,
                                         ),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: kInfo,
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
                                 child: isProcessing
                                     ? const SizedBox(
-                                        width: 16,
-                                        height: 16,
+                                        width: 20,
+                                        height: 20,
                                         child: CircularProgressIndicator(
                                           strokeWidth: 2,
                                           color: Colors.white,
                                         ),
                                       )
-                                    : const Text('Accept'),
+                                    : const Text('Accept', style: TextStyle(fontWeight: FontWeight.bold)),
                               ),
-                            ],
-                          ),
-                        ],
-                      ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                  );
-                },
-              ),
+                  ),
+                );
+              },
             );
           },
         );
@@ -386,3 +569,4 @@ class _PendingInvitesTabState extends State<_PendingInvitesTab> {
     );
   }
 }
+

@@ -342,7 +342,6 @@ class ActivityFeedCard extends StatelessWidget {
     final elevation = (data['elevationGainMeters'] as num?)?.toDouble() ?? 0;
     final durationSeconds =
         (data['activeDurationSeconds'] as num?)?.toInt() ?? 0;
-    final avgHeartRate = (data['avgHeartRate'] as num?)?.toDouble();
     final maxSpeed = (data['maxSpeedMps'] as num?)?.toDouble();
 
     final startedAt = DateTime.tryParse(data['startedAt'] as String? ?? '');
@@ -377,7 +376,6 @@ class ActivityFeedCard extends StatelessWidget {
         durationSeconds: durationSeconds,
         calories: calories,
         elevation: elevation,
-        avgHeartRate: avgHeartRate,
         maxSpeed: maxSpeed,
         likesCollection: likesCollection,
       );
@@ -406,7 +404,6 @@ class ActivityFeedCard extends StatelessWidget {
           durationSeconds: durationSeconds,
           calories: calories,
           elevation: elevation,
-          avgHeartRate: avgHeartRate,
           maxSpeed: maxSpeed,
           likesCollection: likesCollection,
         );
@@ -445,6 +442,19 @@ class ActivityFeedCard extends StatelessWidget {
     return '${speedKmh.toStringAsFixed(1)} km/h';
   }
 
+  String _cleanDuration(String raw) {
+    final parts = raw.split(':');
+    if (parts.length == 3) {
+      if (parts[0] == '00') {
+        return '${parts[1]}:${parts[2]}'; // mm:ss
+      } else {
+        final h = int.tryParse(parts[0])?.toString() ?? parts[0];
+        return '$h:${parts[1]}:${parts[2]}'; // h:mm:ss
+      }
+    }
+    return raw;
+  }
+
   Widget _buildPremiumCard({
     required BuildContext context,
     required String actorUsername,
@@ -455,7 +465,6 @@ class ActivityFeedCard extends StatelessWidget {
     required int durationSeconds,
     required double calories,
     required double elevation,
-    required double? avgHeartRate,
     required double? maxSpeed,
     required CollectionReference<Map<String, dynamic>> likesCollection,
   }) {
@@ -646,12 +655,8 @@ class ActivityFeedCard extends StatelessWidget {
                     _buildStatItem(
                       icon: Icons.timer_rounded,
                       label: 'TIME',
-                      value: durationLabel(durationSeconds).split(':').last,
-                      unit:
-                          durationLabel(durationSeconds).split(':').length == 3
-                          ? '${durationLabel(durationSeconds).split(':')[0]}h ${durationLabel(durationSeconds).split(':')[1]}m'
-                          : '${durationLabel(durationSeconds).split(':')[0]}m',
-                      compact: true,
+                      value: _cleanDuration(durationLabel(durationSeconds)),
+                      unit: durationLabel(durationSeconds).startsWith('00:') ? 'min' : 'hr',
                     ),
                     const SizedBox(width: 8),
                     _buildStatItem(
@@ -679,14 +684,7 @@ class ActivityFeedCard extends StatelessWidget {
                       value: '+${elevation.toStringAsFixed(0)}',
                       unit: 'm',
                     ),
-                    if (avgHeartRate != null && avgHeartRate > 0) ...[
-                      const SizedBox(width: 12),
-                      _buildMiniMetric(
-                        icon: Icons.favorite_rounded,
-                        value: avgHeartRate.toStringAsFixed(0),
-                        unit: 'bpm',
-                      ),
-                    ],
+
                     if (maxSpeed != null && maxSpeed > 0) ...[
                       const SizedBox(width: 12),
                       _buildMiniMetric(

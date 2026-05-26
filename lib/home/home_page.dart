@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -7,8 +6,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import 'package:fake_strava/core/theme.dart';
-import 'package:fake_strava/core/ui_components.dart';
 import 'package:fake_strava/groups/groups_page.dart';
 import 'package:fake_strava/home/social_repository.dart';
 import 'package:fake_strava/home/searched_user_profile_page.dart';
@@ -355,12 +352,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         ),
                       ),
                     ),
-                    Container(
-                      width: 1,
-                      height: 28,
-                      color: const Color(0xFFE2E8F0),
-                    ),
-                    _buildNeomorphicButton(),
                   ],
                 ),
               ),
@@ -368,31 +359,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           ),
         );
       },
-    );
-  }
-
-  Widget _buildNeomorphicButton() {
-    return GestureDetector(
-      onTap: () {
-        Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => const GroupsPage()));
-      },
-      child: Container(
-        width: 52,
-        height: 52,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [const Color(0xFFF97316), const Color(0xFFEA580C)],
-          ),
-          borderRadius: BorderRadius.circular(26),
-        ),
-        child: const Center(
-          child: Icon(Icons.groups_rounded, size: 22, color: Colors.white),
-        ),
-      ),
     );
   }
 
@@ -782,9 +748,9 @@ class _ImmersiveHeaderDelegate extends SliverPersistentHeaderDelegate {
   });
 
   @override
-  double get minExtent => 100;
+  double get minExtent => 90;
   @override
-  double get maxExtent => 220;
+  double get maxExtent => 150;
 
   @override
   Widget build(
@@ -829,80 +795,137 @@ class _ImmersiveHeaderDelegate extends SliverPersistentHeaderDelegate {
             opacity: percentCollapsed > 0.6 ? 1.0 : 0.0,
             duration: const Duration(milliseconds: 200),
             child: Center(
-              child: Text(
-                displayName,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF1E293B),
+              child: Padding(
+                padding: EdgeInsets.only(
+                  top: MediaQuery.of(context).padding.top,
+                ),
+                child: Text(
+                  displayName,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1E293B),
+                  ),
                 ),
               ),
             ),
           ),
 
           // Expanded content
-          Padding(
-            padding: EdgeInsets.only(
-              left: 24,
-              right: 24,
-              top: 60 + (30 * (1 - percentCollapsed)),
-              bottom: 16,
-            ),
-            child: Opacity(
-              opacity: opacity,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildAnimatedAvatar(percentCollapsed),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+          if (opacity > 0.0)
+            Positioned.fill(
+              child: SingleChildScrollView(
+                physics: const NeverScrollableScrollPhysics(),
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    left: 24,
+                    right: 24,
+                    top: MediaQuery.of(context).padding.top + 8,
+                    bottom: 12,
+                  ),
+                  child: Opacity(
+                    opacity: opacity,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildAnimatedAvatar(percentCollapsed),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Welcome back',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  color: const Color(0xFF64748B),
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                displayName,
+                                style: TextStyle(
+                                  fontSize: 20 - (percentCollapsed * 4),
+                                  fontWeight: FontWeight.w800,
+                                  color: const Color(0xFF1E293B),
+                                  letterSpacing: -0.5,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '@$username',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: const Color(0xFF94A3B8),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            Text(
-                              'Welcome back',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                                color: const Color(0xFF64748B),
-                                letterSpacing: 0.3,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              displayName,
-                              style: TextStyle(
-                                fontSize: 20 - (percentCollapsed * 4),
-                                fontWeight: FontWeight.w800,
-                                color: const Color(0xFF1E293B),
-                                letterSpacing: -0.5,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '@$username',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                                color: const Color(0xFF94A3B8),
-                              ),
-                            ),
+                            _buildFollowerChip(),
+                            const SizedBox(height: 8),
+                            _buildGroupsButton(context),
                           ],
                         ),
-                      ),
-                      _buildFollowerChip(),
-                    ],
+                      ],
+                    ),
                   ),
-                ],
+                ),
               ),
             ),
-          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildGroupsButton(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const GroupsPage()));
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFF97316), Color(0xFFEA580C)],
+          ),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFF97316).withValues(alpha: 0.2),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.groups_rounded, size: 14, color: Colors.white),
+            SizedBox(width: 6),
+            Text(
+              'Groups',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

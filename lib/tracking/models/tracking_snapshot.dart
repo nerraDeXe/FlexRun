@@ -12,8 +12,6 @@ class TrackingSnapshot {
     required this.startedAt,
     required this.latitude,
     required this.longitude,
-    this.currentHeartRate,
-    this.heartRateReadings = const [],
   });
 
   final bool isTracking;
@@ -28,13 +26,4 @@ class TrackingSnapshot {
   final DateTime? startedAt;
   final double? latitude;
   final double? longitude;
-  final int? currentHeartRate;
-  final List<int> heartRateReadings;
-
-  /// Calculate average heart rate from readings
-  int get averageHeartRate {
-    if (heartRateReadings.isEmpty) return 0;
-    final sum = heartRateReadings.fold<int>(0, (a, b) => a + b);
-    return (sum / heartRateReadings.length).round();
-  }
 }

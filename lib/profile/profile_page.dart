@@ -275,7 +275,7 @@ class _ProfilePageHeader extends StatelessWidget {
   }
 }
 
-class _ProfileHeroCard extends StatelessWidget {
+class _ProfileHeroCard extends StatefulWidget {
   const _ProfileHeroCard({
     required this.displayName,
     required this.email,
@@ -285,96 +285,188 @@ class _ProfileHeroCard extends StatelessWidget {
   final String email;
 
   @override
-  Widget build(BuildContext context) {
-    final initial = displayName.isNotEmpty
-        ? displayName[0].toUpperCase()
-        : 'R';
+  State<_ProfileHeroCard> createState() => _ProfileHeroCardState();
+}
 
+class _ProfileHeroCardState extends State<_ProfileHeroCard> {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instanceFor(
+    app: Firebase.app(),
+    databaseId: 'fakestrava',
+  );
+
+  Widget _buildFollowerStatChip({
+    required int count,
+    required String label,
+    required IconData icon,
+  }) {
     return Container(
-      padding: const EdgeInsets.all(22),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [kBrandBlack, kBrandOrange],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(26),
-        boxShadow: [
-          BoxShadow(
-            color: kBrandOrange.withValues(alpha: 0.22),
-            blurRadius: 24,
-            offset: const Offset(0, 8),
-          ),
-        ],
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(16),
       ),
-      child: Stack(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Positioned(
-            right: -8,
-            top: -12,
-            child: Icon(
-              Icons.person_rounded,
-              size: 120,
-              color: Colors.white.withValues(alpha: 0.1),
+          Icon(icon, size: 14, color: const Color(0xFFF97316)),
+          const SizedBox(width: 5),
+          Text(
+            '$count',
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF1E293B),
             ),
           ),
-          Row(
-            children: [
-              Container(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.35),
-                    width: 2,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.white.withValues(alpha: 0.25),
-                      blurRadius: 12,
-                      spreadRadius: 0,
-                    ),
-                  ],
-                ),
-                child: CircleAvatar(
-                  radius: 36,
-                  backgroundColor: Colors.white.withValues(alpha: 0.2),
-                  foregroundColor: Colors.white,
-                  child: Text(
-                    initial,
-                    style: AppTypography.displaySmall.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 18),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      displayName,
-                      style: AppTypography.headingLarge.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      email,
-                      style: AppTypography.bodySmall.copyWith(
-                        color: Colors.white.withValues(alpha: 0.82),
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFF64748B),
+            ),
           ),
         ],
       ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return const SizedBox.shrink();
+
+    final initial = widget.displayName.isNotEmpty
+        ? widget.displayName[0].toUpperCase()
+        : 'R';
+
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: _firestore.collection('users').doc(user.uid).snapshots(),
+      builder: (context, userSnapshot) {
+        final userData = userSnapshot.data?.data() ?? const <String, dynamic>{};
+        final username = userData['username'] as String? ?? user.uid.substring(0, 6);
+        final followingIds = ((userData['followingIds'] as List?) ?? const <dynamic>[])
+            .whereType<String>()
+            .toList(growable: false);
+        final followingCount = followingIds.length;
+
+        return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: _firestore
+              .collection('users')
+              .where('followingIds', arrayContains: user.uid)
+              .snapshots(),
+          builder: (context, followersSnapshot) {
+            final followerCount = followersSnapshot.data?.docs.length ?? 0;
+
+            return Container(
+              padding: const EdgeInsets.all(22),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(26),
+                border: Border.all(
+                  color: const Color(0xFFE2E8F0),
+                  width: 1.2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFF97316), Color(0xFFEA580C)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(18),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFF97316).withValues(alpha: 0.2),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: Text(
+                        initial,
+                        style: AppTypography.displaySmall.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 18),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                            Text(
+                              widget.displayName,
+                              style: AppTypography.headingLarge.copyWith(
+                                color: const Color(0xFF1E293B),
+                                fontWeight: FontWeight.w800,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              widget.email,
+                              style: AppTypography.bodySmall.copyWith(
+                                color: const Color(0xFF64748B),
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '@$username',
+                              style: AppTypography.bodySmall.copyWith(
+                                color: const Color(0xFF94A3B8),
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 12),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                _buildFollowerStatChip(
+                                  count: followerCount,
+                                  label: 'followers',
+                                  icon: Icons.people_outline_rounded,
+                                ),
+                                _buildFollowerStatChip(
+                                  count: followingCount,
+                                  label: 'following',
+                                  icon: Icons.person_add_alt_1_outlined,
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+            );
+          },
+        );
+      },
     );
   }
 }

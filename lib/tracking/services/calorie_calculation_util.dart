@@ -72,13 +72,11 @@ class CalorieCalculationUtil {
   /// This provides a more accurate estimate considering:
   /// - User metrics (BMR)
   /// - Elevation gain (additional effort)
-  /// - Individual metrics like heart rate if available
   static double calculateAdvancedCalories({
     required UserMetrics? metrics,
     required double distanceMeters,
     required int durationSeconds,
     required double elevationGainMeters,
-    int? averageHeartRate,
   }) {
     if (durationSeconds == 0) return 0.0;
 
@@ -94,18 +92,6 @@ class CalorieCalculationUtil {
 
     // Add elevation bonus (approximate 0.5 kcal per meter of elevation)
     calories += elevationGainMeters * 0.5;
-
-    // If heart rate data is available, adjust based on intensity
-    if (averageHeartRate != null && averageHeartRate > 0) {
-      // Rough heart rate adjustment factor
-      // Assuming max HR ≈ 220 - age
-      final estimatedMaxHR = metrics != null ? 220 - metrics.age : 180;
-      final intensityFactor = averageHeartRate / estimatedMaxHR;
-
-      // Apply intensity multiplier (0.8 to 1.3 range)
-      final adjustedIntensity = 0.8 + (intensityFactor * 0.5);
-      calories *= adjustedIntensity.clamp(0.8, 1.3);
-    }
 
     return calories;
   }
