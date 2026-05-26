@@ -94,8 +94,9 @@ class TrackingBackgroundService {
         sessionId: payload?[_kSessionId] as String?,
         startedAt: _parseIso(payload?[_kStartedAtIso] as String?),
         latitude: sanitizeLatitude((payload?[_kLatitude] as num?)?.toDouble()),
-        longitude:
-            sanitizeLongitude((payload?[_kLongitude] as num?)?.toDouble()),
+        longitude: sanitizeLongitude(
+          (payload?[_kLongitude] as num?)?.toDouble(),
+        ),
       );
       _updatesController.add(snapshot);
     });
@@ -512,19 +513,15 @@ Future<void> _onServiceStart(ServiceInstance service) async {
     }
 
     if (sessionId != null) {
-      try {
-        await repository.closeSession(
-          sessionId: sessionId!,
-          endedAt: DateTime.now().toUtc(),
-          distanceMeters: distanceMeters,
-          elevationGainMeters: elevationGainMeters,
-          caloriesKcal: caloriesKcal,
-          elapsedSeconds: accumulatedActiveSeconds,
-          points: points,
-        );
-      } catch (e) {
-        debugPrint('Error closing session: $e');
-      }
+      await repository.closeSession(
+        sessionId: sessionId!,
+        endedAt: DateTime.now().toUtc(),
+        distanceMeters: distanceMeters,
+        elevationGainMeters: elevationGainMeters,
+        caloriesKcal: caloriesKcal,
+        elapsedSeconds: accumulatedActiveSeconds,
+        points: points,
+      );
     }
 
     sessionId = null;
