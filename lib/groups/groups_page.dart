@@ -6,7 +6,6 @@ import 'package:fake_strava/core/theme.dart';
 import 'package:fake_strava/groups/create_group_page.dart';
 import 'package:fake_strava/groups/group_detail_page.dart';
 import 'package:fake_strava/groups/group_repository.dart';
-import 'package:fake_strava/groups/widgets/group_timeline_tab.dart';
 
 class GroupsPage extends StatelessWidget {
   const GroupsPage({super.key});

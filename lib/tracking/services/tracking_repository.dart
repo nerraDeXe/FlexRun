@@ -27,6 +27,19 @@ class TrackingRepository {
             message.contains('database fakestrava does not exist'));
   }
 
+  Future<void> deleteSession(String sessionId) async {
+    if (!_cloudSyncEnabled) return;
+    _firestore
+        .collection('tracking_sessions')
+        .doc(sessionId)
+        .delete()
+        .catchError((Object error) {
+      if (_isMissingDatabaseError(error)) {
+        _disableCloudSync(error);
+      }
+    });
+  }
+
   void _disableCloudSync(Object error) {
     _cloudSyncEnabled = false;
     debugPrint(

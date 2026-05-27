@@ -648,7 +648,7 @@ class ActivityFeedCard extends StatelessWidget {
                     _buildStatItem(
                       icon: Icons.straighten_rounded,
                       label: 'DISTANCE',
-                      value: '${distanceKm.toStringAsFixed(2)}',
+                      value: distanceKm.toStringAsFixed(2),
                       unit: 'km',
                     ),
                     const SizedBox(width: 8),
@@ -675,7 +675,7 @@ class ActivityFeedCard extends StatelessWidget {
                   children: [
                     _buildMiniMetric(
                       icon: Icons.local_fire_department_rounded,
-                      value: '${calories.toStringAsFixed(0)}',
+                      value: calories.toStringAsFixed(0),
                       unit: 'kcal',
                     ),
                     const SizedBox(width: 12),

@@ -157,9 +157,18 @@ class _TrackingHomePageState extends State<TrackingHomePage>
   bool _ghostMode = false; // Privacy mode - don't show location to others
   double _currentBearing = 0; // Direction of travel
 
+  AppLifecycleListener? _lifecycleListener;
+
   @override
   void initState() {
     super.initState();
+    _lifecycleListener = AppLifecycleListener(
+      onStateChange: (state) {
+        if (state == AppLifecycleState.detached && _isTracking) {
+          _service.cancelTracking();
+        }
+      },
+    );
     _concurrentRunnerService = ConcurrentRunnerService(
       firestore: FirebaseFirestore.instance,
     );
@@ -222,6 +231,7 @@ class _TrackingHomePageState extends State<TrackingHomePage>
 
   @override
   void dispose() {
+    _lifecycleListener?.dispose();
     _snapshotSubscription?.cancel();
     _foregroundPositionSubscription?.cancel();
     _finishHoldTimer?.cancel();
@@ -314,8 +324,8 @@ class _TrackingHomePageState extends State<TrackingHomePage>
 
     // Calculate bearing from last tracked point
     if (_lastTrackedPoint != null &&
-            _lastTrackedPoint!.latitude != point.latitude ||
-        _lastTrackedPoint!.longitude != point.longitude) {
+        (_lastTrackedPoint!.latitude != point.latitude ||
+         _lastTrackedPoint!.longitude != point.longitude)) {
       _currentBearing = calculateBearing(
         _lastTrackedPoint!.latitude,
         _lastTrackedPoint!.longitude,
@@ -802,6 +812,16 @@ class _TrackingHomePageState extends State<TrackingHomePage>
     });
     try {
       await _service.stopTracking();
+      
+      // Wait for the background service to process the stop and broadcast the update.
+      // This prevents the user from closing the app prematurely while it's still saving.
+      try {
+        await _service.updates
+            .firstWhere((snapshot) => !snapshot.isTracking)
+            .timeout(const Duration(seconds: 3));
+      } catch (_) {
+        // Timeout occurred, proceed with UI reset anyway
+      }
       if (!mounted) {
         return;
       }
@@ -985,7 +1005,7 @@ class _TrackingHomePageState extends State<TrackingHomePage>
 
   Future<void> _handlePauseResume() async {
     setState(() {
-      if (_isManuallyPaused) {
+      if (_isPaused) {
         _isResuming = true;
       } else {
         _isPausing = true;
@@ -993,7 +1013,7 @@ class _TrackingHomePageState extends State<TrackingHomePage>
     });
     try {
       HapticFeedback.lightImpact();
-      if (_isManuallyPaused) {
+      if (_isPaused) {
         await _service.resumeTracking();
       } else {
         await _service.pauseTracking();
@@ -1132,23 +1152,23 @@ class _TrackingHomePageState extends State<TrackingHomePage>
           child: Semantics(
             button: true,
             enabled: !kIsWeb && _isTracking && !_isPausing && !_isResuming,
-            label: _isManuallyPaused ? 'Resume workout' : 'Pause workout',
-            hint: _isManuallyPaused
+            label: _isPaused ? 'Resume workout' : 'Pause workout',
+            hint: _isPaused
                 ? 'Resumes a paused workout'
                 : 'Pauses the current workout',
             child: Tooltip(
-              message: _isManuallyPaused ? 'Resume' : 'Pause',
+              message: _isPaused ? 'Resume' : 'Pause',
               child: OutlinedButton.icon(
                 onPressed: !kIsWeb && _isTracking && !_isPausing && !_isResuming
                     ? _handlePauseResume
                     : null,
                 icon: Icon(
-                  _isManuallyPaused
+                  _isPaused
                       ? Icons.play_arrow_rounded
                       : Icons.pause_rounded,
                 ),
                 label: Text(
-                  _isManuallyPaused
+                  _isPaused
                       ? (_isResuming ? 'Resuming...' : 'Resume')
                       : (_isPausing ? 'Pausing...' : 'Pause'),
                 ),

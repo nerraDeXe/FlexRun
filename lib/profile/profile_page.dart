@@ -10,7 +10,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:fake_strava/core/theme.dart';
 import 'package:fake_strava/core/ui_components.dart';
 import 'package:fake_strava/auth/pages/account_security_page.dart';
+import 'package:fake_strava/tracking/models/tracking_snapshot.dart';
 import 'package:fake_strava/tracking/pages/workout_history_page.dart';
+import 'package:fake_strava/tracking/services/tracking_background_service.dart';
 import 'user_metrics.dart';
 import 'user_metrics_form_dialog.dart';
 import 'user_metrics_repository.dart';
@@ -33,6 +35,9 @@ class _ProfilePageState extends State<ProfilePage> {
   late UserMetricsRepository _metricsRepository;
   UserMetrics? _userMetrics;
   bool _ghostMode = false;
+  bool _autoPauseEnabled = true;
+  bool _isTracking = false;
+  StreamSubscription<TrackingSnapshot>? _trackingSubscription;
 
   String _metricsErrorMessage(Object error, {required bool isSave}) {
     if (error is FirebaseException) {
@@ -55,21 +60,52 @@ class _ProfilePageState extends State<ProfilePage> {
     super.initState();
     _metricsRepository = UserMetricsRepository();
     _loadUserMetrics();
-    _loadGhostMode();
+    _loadSettings();
+    _initTrackingState();
   }
 
-  Future<void> _loadGhostMode() async {
+  Future<void> _initTrackingState() async {
+    final service = TrackingBackgroundService();
+    final snapshot = await service.restoreLatestSnapshot();
+    if (mounted) {
+      setState(() => _isTracking = snapshot.isTracking);
+    }
+    _trackingSubscription = service.updates.listen((s) {
+      if (mounted) {
+        setState(() => _isTracking = s.isTracking);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _trackingSubscription?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _ghostMode = prefs.getBool('ghost_mode') ?? false;
+      _autoPauseEnabled = prefs.getBool('auto_pause_enabled') ?? true;
     });
   }
 
   Future<void> _setGhostMode(bool value) async {
+    if (_isTracking) return;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('ghost_mode', value);
     setState(() {
       _ghostMode = value;
+    });
+  }
+
+  Future<void> _setAutoPauseEnabled(bool value) async {
+    if (_isTracking) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('auto_pause_enabled', value);
+    setState(() {
+      _autoPauseEnabled = value;
     });
   }
 
@@ -198,7 +234,10 @@ class _ProfilePageState extends State<ProfilePage> {
             const SizedBox(height: 14),
             _ProfileActionsGlowCard(
               ghostMode: _ghostMode,
+              autoPauseEnabled: _autoPauseEnabled,
+              isTracking: _isTracking,
               onGhostModeChanged: _setGhostMode,
+              onAutoPauseChanged: _setAutoPauseEnabled,
               onAccountSecurity: () => _openAccountSecurity(context),
               onHistory: () => _openHistory(context),
               onLogout: widget.onLogout,
@@ -660,14 +699,20 @@ class _ProfileAccentIconBadge extends StatelessWidget {
 class _ProfileActionsGlowCard extends StatelessWidget {
   const _ProfileActionsGlowCard({
     required this.ghostMode,
+    required this.autoPauseEnabled,
+    required this.isTracking,
     required this.onGhostModeChanged,
+    required this.onAutoPauseChanged,
     required this.onAccountSecurity,
     required this.onHistory,
     required this.onLogout,
   });
 
   final bool ghostMode;
+  final bool autoPauseEnabled;
+  final bool isTracking;
   final ValueChanged<bool> onGhostModeChanged;
+  final ValueChanged<bool> onAutoPauseChanged;
   final VoidCallback onAccountSecurity;
   final VoidCallback onHistory;
   final Future<void> Function() onLogout;
@@ -691,9 +736,52 @@ class _ProfileActionsGlowCard extends StatelessWidget {
             icon: Icons.history_rounded,
             accent: kSuccess,
             title: 'Workout History',
-            subtitle: 'Browse past runs and export GPX',
+            subtitle: 'Browse past runs',
             trailing: const Icon(Icons.chevron_right, color: kTextTertiary),
             onTap: onHistory,
+          ),
+          Divider(height: 1, color: Colors.black.withValues(alpha: 0.06)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              children: [
+                const _ProfileAccentIconBadge(
+                  icon: Icons.pause_circle_outline_rounded,
+                  accent: kBrandOrange,
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Auto-pause / Auto-continue',
+                        style: AppTypography.bodyLarge.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: isTracking
+                              ? Colors.black.withValues(alpha: 0.3)
+                              : Colors.black.withValues(alpha: 0.88),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        isTracking 
+                            ? 'Cannot be changed while recording'
+                            : 'Automatically pause run when stationary',
+                        style: AppTypography.bodySmall.copyWith(
+                          color: Colors.black.withValues(alpha: 0.52),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Switch(
+                  value: autoPauseEnabled,
+                  onChanged: isTracking ? null : onAutoPauseChanged,
+                ),
+              ],
+            ),
           ),
           Divider(height: 1, color: Colors.black.withValues(alpha: 0.06)),
           Padding(
@@ -713,12 +801,16 @@ class _ProfileActionsGlowCard extends StatelessWidget {
                         'Ghost Mode',
                         style: AppTypography.bodyLarge.copyWith(
                           fontWeight: FontWeight.w800,
-                          color: Colors.black.withValues(alpha: 0.88),
+                          color: isTracking
+                              ? Colors.black.withValues(alpha: 0.3)
+                              : Colors.black.withValues(alpha: 0.88),
                         ),
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Hide your location from other runners',
+                        isTracking
+                            ? 'Cannot be changed while recording'
+                            : 'Hide your location from other runners',
                         style: AppTypography.bodySmall.copyWith(
                           color: Colors.black.withValues(alpha: 0.52),
                           fontWeight: FontWeight.w500,
@@ -729,7 +821,7 @@ class _ProfileActionsGlowCard extends StatelessWidget {
                 ),
                 Switch(
                   value: ghostMode,
-                  onChanged: onGhostModeChanged,
+                  onChanged: isTracking ? null : onGhostModeChanged,
                 ),
               ],
             ),

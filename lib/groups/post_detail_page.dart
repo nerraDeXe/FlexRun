@@ -387,25 +387,47 @@ class _PostDetailPageState extends State<PostDetailPage> {
         final displayName = userData?['displayName'] as String? ?? (authorId == widget.currentUserId ? 'You' : '@$username');
 
         return Padding(
-          padding: EdgeInsets.only(left: depth == 0 ? 0.0 : 16.0, bottom: 8.0),
+          padding: EdgeInsets.only(left: depth == 0 ? 0.0 : 40.0, bottom: 8.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  CircleAvatar(
-                    radius: 16,
-                    backgroundColor: kBrandOrange.withValues(alpha: 0.2),
-                    child: Text(
-                      (displayName.isNotEmpty ? displayName[0] : 'R').toUpperCase(),
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: kBrandOrange),
+                  Container(
+                    width: 32,
+                    height: 32,
+                    margin: const EdgeInsets.only(top: 8),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Color(0xFFF97316), Color(0xFFEA580C)],
+                      ),
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFF97316).withValues(alpha: 0.25),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: Text(
+                        (displayName.isNotEmpty ? displayName[0] : 'R').toUpperCase(),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                          color: Colors.white,
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Container(
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(
                         color: Colors.grey.shade100,
                         borderRadius: BorderRadius.circular(12),

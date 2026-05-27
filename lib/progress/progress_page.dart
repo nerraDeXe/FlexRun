@@ -145,34 +145,10 @@ class ProgressPage extends StatelessWidget {
                   subtitle: 'Weekly totals and personal averages',
                 ),
                 const SizedBox(height: 14),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _ProgressMetricCard(
-                        label: 'Workouts',
-                        value: '$weekWorkoutCount',
-                        icon: Icons.fitness_center,
-                        accent: kInfo,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _ProgressMetricCard(
-                        label: 'Calories',
-                        value: '${weekCalories.toStringAsFixed(0)} kcal',
-                        icon: Icons.local_fire_department,
-                        accent: kWarning,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                _ProgressMetricCard(
-                  label: 'Average distance',
-                  value: '${averageDistanceKm.toStringAsFixed(2)} km / workout',
-                  icon: Icons.auto_graph,
-                  accent: kSuccess,
-                  fullWidth: true,
+                _ProgressHighlightsCard(
+                  workoutCount: weekWorkoutCount,
+                  caloriesKcal: weekCalories,
+                  averageDistanceKm: averageDistanceKm,
                 ),
                 const SizedBox(height: 24),
                 const _SectionHeader(
@@ -326,96 +302,123 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-class _ProgressMetricCard extends StatelessWidget {
-  const _ProgressMetricCard({
-    required this.label,
-    required this.value,
-    required this.icon,
-    this.accent = kBrandOrange,
-    this.fullWidth = false,
+class _ProgressHighlightsCard extends StatelessWidget {
+  const _ProgressHighlightsCard({
+    required this.workoutCount,
+    required this.caloriesKcal,
+    required this.averageDistanceKm,
   });
 
-  final String label;
-  final String value;
-  final IconData icon;
-  final Color accent;
-  final bool fullWidth;
+  final int workoutCount;
+  final double caloriesKcal;
+  final double averageDistanceKm;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: fullWidth ? double.infinity : null,
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: kSurfaceCard,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: accent.withValues(alpha: 0.12),
+          color: Colors.black.withValues(alpha: 0.06),
           width: 1.2,
         ),
         boxShadow: [
           BoxShadow(
-            color: accent.withValues(alpha: 0.06),
-            blurRadius: 14,
-            offset: const Offset(0, 2),
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: Row(
+      child: Column(
         children: [
-          Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  accent.withValues(alpha: 0.2),
-                  accent.withValues(alpha: 0.5),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: accent.withValues(alpha: 0.12),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Icon(
-              icon,
-              color: accent,
-              size: 24,
-            ),
+          _buildRow(
+            label: 'Workouts',
+            value: '$workoutCount',
+            icon: Icons.fitness_center,
+            accent: kInfo,
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: AppTypography.labelSmall.copyWith(
-                    color: Colors.black.withValues(alpha: 0.55),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  value,
-                  style: AppTypography.headingLarge.copyWith(
-                    fontWeight: FontWeight.w900,
-                    color: Colors.black.withValues(alpha: 0.9),
-                    letterSpacing: -0.3,
-                  ),
-                ),
-              ],
-            ),
+          _buildDivider(),
+          _buildRow(
+            label: 'Calories',
+            value: '${caloriesKcal.toStringAsFixed(0)} kcal',
+            icon: Icons.local_fire_department,
+            accent: kWarning,
+          ),
+          _buildDivider(),
+          _buildRow(
+            label: 'Average distance',
+            value: '${averageDistanceKm.toStringAsFixed(2)} km / workout',
+            icon: Icons.auto_graph,
+            accent: kSuccess,
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildDivider() {
+    return Divider(
+      color: Colors.black.withValues(alpha: 0.06),
+      height: 24,
+      thickness: 1,
+    );
+  }
+
+  Widget _buildRow({
+    required String label,
+    required String value,
+    required IconData icon,
+    required Color accent,
+  }) {
+    return Row(
+      children: [
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                accent.withValues(alpha: 0.15),
+                accent.withValues(alpha: 0.3),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(
+            icon,
+            color: accent,
+            size: 22,
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: AppTypography.labelSmall.copyWith(
+                  color: Colors.black.withValues(alpha: 0.55),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                value,
+                style: AppTypography.headingMedium.copyWith(
+                  fontWeight: FontWeight.w900,
+                  color: Colors.black.withValues(alpha: 0.9),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

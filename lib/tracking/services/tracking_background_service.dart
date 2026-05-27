@@ -34,6 +34,7 @@ const String _kLongitude = 'longitude';
 const String _kUpdateEvent = 'tracking_update';
 const String _kStartEvent = 'start_tracking';
 const String _kStopEvent = 'stop_tracking';
+const String _kCancelEvent = 'cancel_tracking';
 const String _kPauseEvent = 'pause_tracking';
 const String _kResumeEvent = 'resume_tracking';
 const String _kErrorEvent = 'tracking_error';
@@ -120,6 +121,10 @@ class TrackingBackgroundService {
 
   Future<void> stopTracking() async {
     _service.invoke(_kStopEvent);
+  }
+
+  Future<void> cancelTracking() async {
+    _service.invoke(_kCancelEvent);
   }
 
   Future<void> pauseTracking() async {
@@ -278,6 +283,7 @@ Future<void> _onServiceStart(ServiceInstance service) async {
   );
   DateTime? stationarySince;
   UserMetrics? userMetrics;
+  Timer? notificationTimer;
 
   int currentElapsedSeconds() {
     if (!isTracking) {
@@ -289,6 +295,39 @@ Future<void> _onServiceStart(ServiceInstance service) async {
     final extra = DateTime.now().toUtc().difference(lastResumedAt!).inSeconds;
     return accumulatedActiveSeconds + (extra > 0 ? extra : 0);
   }
+
+  void updateNotification() {
+    if (service is AndroidServiceInstance) {
+      if (isTracking) {
+        final elapsed = Duration(seconds: currentElapsedSeconds());
+        final h = elapsed.inHours;
+        final m = elapsed.inMinutes.remainder(60);
+        final s = elapsed.inSeconds.remainder(60);
+        final timeStr = '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+        final distStr = (distanceMeters / 1000).toStringAsFixed(2);
+        
+        String status = 'Recording';
+        if (isManuallyPaused) status = 'Paused';
+        else if (isAutoPaused) status = 'Auto-paused';
+
+        service.setForegroundNotificationInfo(
+          title: 'FlexRun - $status',
+          content: 'Time: $timeStr • Dist: $distStr km',
+        );
+      } else {
+        service.setForegroundNotificationInfo(
+          title: 'FlexRun',
+          content: 'GPS tracking ready',
+        );
+      }
+    }
+  }
+
+  notificationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+    if (isTracking) {
+      updateNotification();
+    }
+  });
 
   Future<void> broadcastSnapshot() async {
     final payload = <String, dynamic>{
@@ -340,6 +379,8 @@ Future<void> _onServiceStart(ServiceInstance service) async {
       await prefs.remove(_kLatitude);
       await prefs.remove(_kLongitude);
     }
+
+    updateNotification();
   }
 
   Future<void> start() async {
@@ -387,6 +428,9 @@ Future<void> _onServiceStart(ServiceInstance service) async {
     );
     await broadcastSnapshot();
 
+    final prefs = await SharedPreferences.getInstance();
+    final autoPauseEnabled = prefs.getBool('auto_pause_enabled') ?? true;
+
     positionSubscription =
         Geolocator.getPositionStream(
           locationSettings: const LocationSettings(
@@ -432,7 +476,7 @@ Future<void> _onServiceStart(ServiceInstance service) async {
                 speed >= _kAutoResumeSpeedThresholdMps ||
                 segmentMeters >= _kMinMovementMeters;
 
-            if (hasMeaningfulMovement) {
+            if (hasMeaningfulMovement || !autoPauseEnabled) {
               stationarySince = null;
               isAutoPaused = false;
             } else {
@@ -504,6 +548,15 @@ Future<void> _onServiceStart(ServiceInstance service) async {
       return;
     }
     isTracking = false;
+    isAutoPaused = false;
+    isManuallyPaused = false;
+    
+    // Immediately persist the critical flags so that if the isolate is killed 
+    // before finishing closeSession, the app doesn't load in a paused/tracking state.
+    await prefs.setBool(_kIsTracking, false);
+    await prefs.setBool(_kIsAutoPaused, false);
+    await prefs.setBool(_kIsManuallyPaused, false);
+
     await positionSubscription?.cancel();
     positionSubscription = null;
     if (lastResumedAt != null) {
@@ -562,7 +615,7 @@ Future<void> _onServiceStart(ServiceInstance service) async {
   }
 
   Future<void> resume() async {
-    if (!isTracking || !isManuallyPaused) {
+    if (!isTracking || (!isManuallyPaused && !isAutoPaused)) {
       return;
     }
     isManuallyPaused = false;
@@ -574,6 +627,43 @@ Future<void> _onServiceStart(ServiceInstance service) async {
         sessionId: sessionId!,
         isManuallyPaused: false,
         elapsedSeconds: accumulatedActiveSeconds,
+      );
+    }
+    await broadcastSnapshot();
+  }
+
+  Future<void> cancel() async {
+    if (!isTracking) return;
+    isTracking = false;
+    isAutoPaused = false;
+    isManuallyPaused = false;
+
+    await prefs.setBool(_kIsTracking, false);
+    await prefs.setBool(_kIsAutoPaused, false);
+    await prefs.setBool(_kIsManuallyPaused, false);
+
+    await positionSubscription?.cancel();
+    positionSubscription = null;
+
+    if (sessionId != null) {
+      await repository.deleteSession(sessionId!);
+    }
+
+    sessionId = null;
+    startedAt = null;
+    lastPoint = null;
+    distanceMeters = 0;
+    elevationGainMeters = 0;
+    caloriesKcal = 0;
+    points = 0;
+    accumulatedActiveSeconds = 0;
+    lastResumedAt = null;
+    stationarySince = null;
+    
+    if (service is AndroidServiceInstance) {
+      service.setForegroundNotificationInfo(
+        title: 'FlexRun',
+        content: 'GPS tracking ready',
       );
     }
     await broadcastSnapshot();
@@ -592,6 +682,14 @@ Future<void> _onServiceStart(ServiceInstance service) async {
       await stop();
     } catch (error) {
       service.invoke(_kErrorEvent, {'message': 'Stop failed: $error'});
+    }
+  });
+
+  service.on(_kCancelEvent).listen((_) async {
+    try {
+      await cancel();
+    } catch (error) {
+      service.invoke(_kErrorEvent, {'message': 'Cancel failed: $error'});
     }
   });
   service.on(_kPauseEvent).listen((_) async {

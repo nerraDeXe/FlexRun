@@ -68,10 +68,18 @@ class _CreateGroupPageState extends State<CreateGroupPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Create Group'),
-        backgroundColor: Colors.transparent,
+        title: Text(
+          'Create Group',
+          style: AppTypography.headingMedium.copyWith(
+            color: Colors.white,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.5,
+          ),
+        ),
+        backgroundColor: kBrandBlack,
+        foregroundColor: Colors.white,
         elevation: 0,
-        foregroundColor: Colors.black,
+        centerTitle: false,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),

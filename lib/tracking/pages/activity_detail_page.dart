@@ -13,6 +13,7 @@ import 'package:fake_strava/core/maplibre_config.dart';
 import 'package:fake_strava/core/theme.dart';
 import 'package:fake_strava/core/ui_components.dart';
 import 'package:fake_strava/tracking/widgets/activity_feed_card.dart';
+import 'package:fake_strava/tracking/widgets/ai_insights_section.dart';
 import 'package:fake_strava/home/flyover_replay_page_stub.dart'
     if (dart.library.io) 'package:fake_strava/home/flyover_replay_page.dart';
 
@@ -50,10 +51,12 @@ class ActivityDetailPage extends StatelessWidget {
 
     final parts = <String>[];
     if (elapsed.inHours > 0) parts.add('${elapsed.inHours}h');
-    if (elapsed.inMinutes.remainder(60) > 0)
+    if (elapsed.inMinutes.remainder(60) > 0) {
       parts.add('${elapsed.inMinutes.remainder(60)}m');
-    if (elapsed.inSeconds.remainder(60) > 0 || parts.isEmpty)
+    }
+    if (elapsed.inSeconds.remainder(60) > 0 || parts.isEmpty) {
       parts.add('${elapsed.inSeconds.remainder(60)}s');
+    }
 
     return parts.join(' ');
   }
@@ -246,6 +249,12 @@ class ActivityDetailPage extends StatelessWidget {
                         endedAt: endedAt,
                       ),
                       const SizedBox(height: 16),
+                      AIInsightsSection(
+                        firestore: firestore,
+                        sessionId: sessionId,
+                        sessionData: sessionData,
+                        isMine: isMine,
+                      ),
                       _FlyoverCard(
                         context: context,
                         points: points,
@@ -452,12 +461,9 @@ class _HeroStatsCard extends StatelessWidget {
                 Container(width: 1, height: 50, color: Colors.white24),
                 Expanded(
                   child: _HeroStatItem(
-                    value: paceLabel.split(':')[0],
+                    value: paceLabel,
                     unit: 'min/km',
                     label: 'Pace',
-                    secondary: paceLabel.contains(':')
-                        ? ':${paceLabel.split(':')[1]}'
-                        : '',
                   ),
                 ),
                 Container(width: 1, height: 50, color: Colors.white24),
@@ -482,13 +488,11 @@ class _HeroStatItem extends StatelessWidget {
     required this.value,
     required this.unit,
     required this.label,
-    this.secondary = '',
   });
 
   final String value;
   final String unit;
   final String label;
-  final String secondary;
 
   @override
   Widget build(BuildContext context) {
@@ -508,27 +512,17 @@ class _HeroStatItem extends StatelessWidget {
                 value,
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 32,
+                  fontSize: 26,
                   fontWeight: FontWeight.w800,
                   letterSpacing: -0.5,
                 ),
               ),
-              if (secondary.isNotEmpty) ...[
-                Text(
-                  secondary,
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
               const SizedBox(width: 4),
               Text(
                 unit,
                 style: const TextStyle(
                   color: Colors.white54,
-                  fontSize: 12,
+                  fontSize: 10,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -585,7 +579,7 @@ class _QuickStatsGrid extends StatelessWidget {
       children: [
         _QuickStat(
           icon: Icons.local_fire_department,
-          value: '${calories.toStringAsFixed(0)}',
+          value: calories.toStringAsFixed(0),
           unit: 'kcal',
           color: kBrandOrange,
         ),
@@ -1160,7 +1154,7 @@ class _RanTogetherSection extends StatelessWidget {
                   vertical: 4,
                 ),
                 itemCount: concurrentRunners.length,
-                separatorBuilder: (_, __) =>
+                separatorBuilder: (_, _) =>
                     const Divider(height: 1, indent: 52),
                 itemBuilder: (context, index) {
                   final doc = concurrentRunners[index];
