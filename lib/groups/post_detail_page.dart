@@ -36,7 +36,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
 
     _commentController.clear();
     final replyId = _replyingToCommentId;
-    
+
     setState(() {
       _replyingToCommentId = null;
       _replyingToUserName = null;
@@ -51,9 +51,9 @@ class _PostDetailPageState extends State<PostDetailPage> {
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error posting comment: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error posting comment: $e')));
       }
     }
   }
@@ -63,9 +63,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: const Text(
           'Delete post?',
           style: TextStyle(
@@ -114,9 +112,9 @@ class _PostDetailPageState extends State<PostDetailPage> {
         }
       } catch (e) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to delete post: $e')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Failed to delete post: $e')));
         }
       }
     }
@@ -175,7 +173,9 @@ class _PostDetailPageState extends State<PostDetailPage> {
                           options: MapOptions(
                             initialCenter: LatLng(locationLat, locationLng),
                             initialZoom: 14.0,
-                            interactionOptions: const InteractionOptions(flags: InteractiveFlag.none),
+                            interactionOptions: const InteractionOptions(
+                              flags: InteractiveFlag.none,
+                            ),
                           ),
                           children: [
                             TileLayer(
@@ -190,7 +190,11 @@ class _PostDetailPageState extends State<PostDetailPage> {
                                   point: LatLng(locationLat, locationLng),
                                   width: 40,
                                   height: 40,
-                                  child: const Icon(Icons.location_pin, color: kBrandOrange, size: 40),
+                                  child: const Icon(
+                                    Icons.location_pin,
+                                    color: kBrandOrange,
+                                    size: 40,
+                                  ),
                                 ),
                               ],
                             ),
@@ -206,17 +210,27 @@ class _PostDetailPageState extends State<PostDetailPage> {
                     decoration: BoxDecoration(
                       color: kBrandOrange.withValues(alpha: 0.05),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: kBrandOrange.withValues(alpha: 0.2)),
+                      border: Border.all(
+                        color: kBrandOrange.withValues(alpha: 0.2),
+                      ),
                     ),
                     child: Column(
                       children: [
                         Row(
                           children: [
-                            const Icon(Icons.calendar_today, color: kBrandOrange),
+                            const Icon(
+                              Icons.calendar_today,
+                              color: kBrandOrange,
+                            ),
                             const SizedBox(width: 12),
                             Text(
-                              DateFormat('EEEE, MMMM d @ h:mm a').format(scheduledTime.toDate()),
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                              DateFormat(
+                                'EEEE, MMMM d @ h:mm a',
+                              ).format(scheduledTime.toDate()),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
                             ),
                           ],
                         ),
@@ -226,7 +240,12 @@ class _PostDetailPageState extends State<PostDetailPage> {
                             children: [
                               const Icon(Icons.location_on, color: Colors.grey),
                               const SizedBox(width: 12),
-                              Expanded(child: Text(location, style: const TextStyle(fontSize: 16))),
+                              Expanded(
+                                child: Text(
+                                  location,
+                                  style: const TextStyle(fontSize: 16),
+                                ),
+                              ),
                             ],
                           ),
                         ],
@@ -234,12 +253,15 @@ class _PostDetailPageState extends State<PostDetailPage> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  
+
                   // RSVPs
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('${rsvps.length} Going', style: const TextStyle(fontWeight: FontWeight.bold)),
+                      Text(
+                        '${rsvps.length} Going',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
                       ElevatedButton.icon(
                         onPressed: () {
                           GroupRepository().toggleRsvp(
@@ -249,50 +271,76 @@ class _PostDetailPageState extends State<PostDetailPage> {
                           );
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: isGoing ? Colors.grey.shade300 : kBrandOrange,
-                          foregroundColor: isGoing ? Colors.black : Colors.white,
+                          backgroundColor: isGoing
+                              ? Colors.grey.shade300
+                              : kBrandOrange,
+                          foregroundColor: isGoing
+                              ? Colors.black
+                              : Colors.white,
                         ),
                         icon: Icon(isGoing ? Icons.close : Icons.check),
-                        label: Text(isGoing ? 'Cancel RSVP' : 'RSVP'),
+                        label: Text(isGoing ? 'Cancel' : 'Going'),
                       ),
                     ],
                   ),
                   const SizedBox(height: 16),
                 ],
-                
+
                 const Divider(height: 32),
-                Text('Comments', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+                Text(
+                  'Comments',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                ),
                 const SizedBox(height: 16),
 
                 // Comments List
                 StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                   stream: GroupRepository().getCommentsStream(widget.postId),
                   builder: (context, snapshot) {
-                    if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-                    
-                    final docs = List<DocumentSnapshot<Map<String, dynamic>>>.from(snapshot.data!.docs);
-                    
+                    if (!snapshot.hasData)
+                      return const Center(child: CircularProgressIndicator());
+
+                    final docs =
+                        List<DocumentSnapshot<Map<String, dynamic>>>.from(
+                          snapshot.data!.docs,
+                        );
+
                     if (docs.isEmpty) {
                       return const Center(
                         child: Padding(
                           padding: EdgeInsets.all(32.0),
-                          child: Text('No comments yet. Be the first to start the discussion!', style: TextStyle(color: Colors.grey)),
+                          child: Text(
+                            'No comments yet. Be the first to start the discussion!',
+                            style: TextStyle(color: Colors.grey),
+                          ),
                         ),
                       );
                     }
 
                     // Sort chronologically by createdAt (locally since we removed the Firestore orderBy index)
                     docs.sort((a, b) {
-                      final timeA = (a.data()?['createdAt'] as Timestamp?)?.toDate().millisecondsSinceEpoch ?? 0;
-                      final timeB = (b.data()?['createdAt'] as Timestamp?)?.toDate().millisecondsSinceEpoch ?? 0;
+                      final timeA =
+                          (a.data()?['createdAt'] as Timestamp?)
+                              ?.toDate()
+                              .millisecondsSinceEpoch ??
+                          0;
+                      final timeB =
+                          (b.data()?['createdAt'] as Timestamp?)
+                              ?.toDate()
+                              .millisecondsSinceEpoch ??
+                          0;
                       return timeA.compareTo(timeB);
                     });
 
                     // Build comment tree
-                    final Map<String, List<DocumentSnapshot<Map<String, dynamic>>>> tree = {
-                      'root': [],
-                    };
-                    
+                    final Map<
+                      String,
+                      List<DocumentSnapshot<Map<String, dynamic>>>
+                    >
+                    tree = {'root': []};
+
                     for (final doc in docs) {
                       final data = doc.data()!;
                       final replyToId = data['replyToId'] as String?;
@@ -304,23 +352,29 @@ class _PostDetailPageState extends State<PostDetailPage> {
                     }
 
                     return Column(
-                      children: tree['root']!.map((doc) => _buildCommentNode(doc, tree, 0)).toList(),
+                      children: tree['root']!
+                          .map((doc) => _buildCommentNode(doc, tree, 0))
+                          .toList(),
                     );
                   },
                 ),
               ],
             ),
           ),
-          
+
           // Comment Input
           Container(
-            padding: const EdgeInsets.all(8.0).copyWith(
-              bottom: MediaQuery.of(context).viewInsets.bottom + 8,
-            ),
+            padding: const EdgeInsets.all(
+              8.0,
+            ).copyWith(bottom: MediaQuery.of(context).viewInsets.bottom + 8),
             decoration: BoxDecoration(
               color: Colors.white,
               boxShadow: [
-                BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 4, offset: const Offset(0, -2))
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.1),
+                  blurRadius: 4,
+                  offset: const Offset(0, -2),
+                ),
               ],
             ),
             child: Column(
@@ -328,10 +382,20 @@ class _PostDetailPageState extends State<PostDetailPage> {
               children: [
                 if (_replyingToCommentId != null)
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 8.0, left: 8, right: 8),
+                    padding: const EdgeInsets.only(
+                      bottom: 8.0,
+                      left: 8,
+                      right: 8,
+                    ),
                     child: Row(
                       children: [
-                        Text('Replying to $_replyingToUserName', style: const TextStyle(fontWeight: FontWeight.bold, color: kBrandOrange)),
+                        Text(
+                          'Replying to $_replyingToUserName',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: kBrandOrange,
+                          ),
+                        ),
                         const Spacer(),
                         InkWell(
                           onTap: () => setState(() {
@@ -350,8 +414,13 @@ class _PostDetailPageState extends State<PostDetailPage> {
                         controller: _commentController,
                         decoration: InputDecoration(
                           hintText: 'Add a comment...',
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(24)),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
                         ),
                       ),
                     ),
@@ -370,21 +439,32 @@ class _PostDetailPageState extends State<PostDetailPage> {
     );
   }
 
-  Widget _buildCommentNode(DocumentSnapshot<Map<String, dynamic>> doc, Map<String, List<DocumentSnapshot<Map<String, dynamic>>>> tree, int depth) {
+  Widget _buildCommentNode(
+    DocumentSnapshot<Map<String, dynamic>> doc,
+    Map<String, List<DocumentSnapshot<Map<String, dynamic>>>> tree,
+    int depth,
+  ) {
     final data = doc.data()!;
     final authorId = data['authorId'] as String? ?? 'Unknown';
     final text = data['text'] as String? ?? '';
     final createdAt = data['createdAt'] as Timestamp?;
-    
+
     final replies = tree[doc.id] ?? [];
 
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: GroupRepository().firestore.collection('users').doc(authorId).snapshots(),
+      stream: GroupRepository().firestore
+          .collection('users')
+          .doc(authorId)
+          .snapshots(),
       builder: (context, userSnapshot) {
         final userData = userSnapshot.data?.data();
-        final fallbackUsername = authorId.length >= 6 ? authorId.substring(0, 6) : 'runner';
+        final fallbackUsername = authorId.length >= 6
+            ? authorId.substring(0, 6)
+            : 'runner';
         final username = userData?['username'] as String? ?? fallbackUsername;
-        final displayName = userData?['displayName'] as String? ?? (authorId == widget.currentUserId ? 'You' : '@$username');
+        final displayName =
+            userData?['displayName'] as String? ??
+            (authorId == widget.currentUserId ? 'You' : '@$username');
 
         return Padding(
           padding: EdgeInsets.only(left: depth == 0 ? 0.0 : 40.0, bottom: 8.0),
@@ -407,7 +487,9 @@ class _PostDetailPageState extends State<PostDetailPage> {
                       borderRadius: BorderRadius.circular(10),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFFF97316).withValues(alpha: 0.25),
+                          color: const Color(
+                            0xFFF97316,
+                          ).withValues(alpha: 0.25),
                           blurRadius: 6,
                           offset: const Offset(0, 2),
                         ),
@@ -415,7 +497,8 @@ class _PostDetailPageState extends State<PostDetailPage> {
                     ),
                     child: Center(
                       child: Text(
-                        (displayName.isNotEmpty ? displayName[0] : 'R').toUpperCase(),
+                        (displayName.isNotEmpty ? displayName[0] : 'R')
+                            .toUpperCase(),
                         style: const TextStyle(
                           fontWeight: FontWeight.w800,
                           fontSize: 14,
@@ -427,7 +510,10 @@ class _PostDetailPageState extends State<PostDetailPage> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.grey.shade100,
                         borderRadius: BorderRadius.circular(12),
@@ -438,16 +524,31 @@ class _PostDetailPageState extends State<PostDetailPage> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(displayName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1E293B))),
+                              Text(
+                                displayName,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                  color: Color(0xFF1E293B),
+                                ),
+                              ),
                               if (createdAt != null)
                                 Text(
-                                  DateFormat.MMMd().add_jm().format(createdAt.toDate()),
-                                  style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
+                                  DateFormat.MMMd().add_jm().format(
+                                    createdAt.toDate(),
+                                  ),
+                                  style: TextStyle(
+                                    color: Colors.grey.shade600,
+                                    fontSize: 11,
+                                  ),
                                 ),
                             ],
                           ),
                           const SizedBox(height: 4),
-                          Text(text, style: const TextStyle(color: Color(0xFF1E293B))),
+                          Text(
+                            text,
+                            style: const TextStyle(color: Color(0xFF1E293B)),
+                          ),
                         ],
                       ),
                     ),
@@ -463,14 +564,23 @@ class _PostDetailPageState extends State<PostDetailPage> {
                       _replyingToUserName = displayName;
                     });
                   },
-                  child: const Text('Reply', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 12)),
+                  child: const Text(
+                    'Reply',
+                    style: TextStyle(
+                      color: Colors.grey,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
                 ),
               ),
-              ...replies.map((replyDoc) => _buildCommentNode(replyDoc, tree, depth + 1)),
+              ...replies.map(
+                (replyDoc) => _buildCommentNode(replyDoc, tree, depth + 1),
+              ),
             ],
           ),
         );
-      }
+      },
     );
   }
 }

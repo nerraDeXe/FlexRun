@@ -377,7 +377,7 @@ class GroupPostCard extends StatelessWidget {
                                   const SizedBox(width: 6),
                                   Flexible(
                                     child: Text(
-                                      isGoing ? 'Going (${rsvps.length})' : 'RSVP (${rsvps.length})',
+                                      'Going (${rsvps.length})',
                                       style: TextStyle(
                                         fontSize: 13,
                                         fontWeight: FontWeight.w700,
