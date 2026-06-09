@@ -29,6 +29,13 @@ class _PostDetailPageState extends State<PostDetailPage> {
   final _commentController = TextEditingController();
   String? _replyingToCommentId;
   String? _replyingToUserName;
+  late Set<String> _localRsvps;
+
+  @override
+  void initState() {
+    super.initState();
+    _localRsvps = Set<String>.from(widget.postData['rsvps'] ?? []);
+  }
 
   void _submitComment() async {
     final text = _commentController.text.trim();
@@ -135,8 +142,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
     final location = postData['location'] as String?;
     final locationLat = postData['locationLat'] as double?;
     final locationLng = postData['locationLng'] as double?;
-    final rsvps = List<String>.from(postData['rsvps'] ?? []);
-    final isGoing = rsvps.contains(widget.currentUserId);
+    final isGoing = _localRsvps.contains(widget.currentUserId);
     final isUpcoming = status == 'upcoming';
     final isCreator = postData['creatorId'] == widget.currentUserId;
 
@@ -259,11 +265,18 @@ class _PostDetailPageState extends State<PostDetailPage> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        '${rsvps.length} Going',
+                        '${_localRsvps.length} Going',
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                       ElevatedButton.icon(
                         onPressed: () {
+                          setState(() {
+                            if (isGoing) {
+                              _localRsvps.remove(widget.currentUserId);
+                            } else {
+                              _localRsvps.add(widget.currentUserId);
+                            }
+                          });
                           GroupRepository().toggleRsvp(
                             postId: widget.postId,
                             userId: widget.currentUserId,
