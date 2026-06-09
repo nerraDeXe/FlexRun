@@ -299,8 +299,9 @@ class _PostDetailPageState extends State<PostDetailPage> {
                 StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                   stream: GroupRepository().getCommentsStream(widget.postId),
                   builder: (context, snapshot) {
-                    if (!snapshot.hasData)
+                    if (!snapshot.hasData) {
                       return const Center(child: CircularProgressIndicator());
+                    }
 
                     final docs =
                         List<DocumentSnapshot<Map<String, dynamic>>>.from(

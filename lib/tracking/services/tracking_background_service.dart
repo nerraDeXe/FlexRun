@@ -307,8 +307,9 @@ Future<void> _onServiceStart(ServiceInstance service) async {
         final distStr = (distanceMeters / 1000).toStringAsFixed(2);
         
         String status = 'Recording';
-        if (isManuallyPaused) status = 'Paused';
-        else if (isAutoPaused) status = 'Auto-paused';
+        if (isManuallyPaused) {
+          status = 'Paused';
+        } else if (isAutoPaused) status = 'Auto-paused';
 
         service.setForegroundNotificationInfo(
           title: 'FlexRun - $status',
