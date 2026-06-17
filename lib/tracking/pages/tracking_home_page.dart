@@ -325,7 +325,7 @@ class _TrackingHomePageState extends State<TrackingHomePage>
     // Calculate bearing from last tracked point
     if (_lastTrackedPoint != null &&
         (_lastTrackedPoint!.latitude != point.latitude ||
-         _lastTrackedPoint!.longitude != point.longitude)) {
+            _lastTrackedPoint!.longitude != point.longitude)) {
       _currentBearing = calculateBearing(
         _lastTrackedPoint!.latitude,
         _lastTrackedPoint!.longitude,
@@ -812,7 +812,7 @@ class _TrackingHomePageState extends State<TrackingHomePage>
     });
     try {
       await _service.stopTracking();
-      
+
       // Wait for the background service to process the stop and broadcast the update.
       // This prevents the user from closing the app prematurely while it's still saving.
       try {
@@ -1108,7 +1108,6 @@ class _TrackingHomePageState extends State<TrackingHomePage>
     return panelHeight + chrome;
   }
 
-
   /// Start / Pause / Finish — used in a floating bar above the stats sheet.
   Widget _buildFloatingTrackingControls() {
     return Row(
@@ -1163,9 +1162,7 @@ class _TrackingHomePageState extends State<TrackingHomePage>
                     ? _handlePauseResume
                     : null,
                 icon: Icon(
-                  _isPaused
-                      ? Icons.play_arrow_rounded
-                      : Icons.pause_rounded,
+                  _isPaused ? Icons.play_arrow_rounded : Icons.pause_rounded,
                 ),
                 label: Text(
                   _isPaused
