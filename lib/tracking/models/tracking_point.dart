@@ -6,6 +6,7 @@ class TrackingPoint {
     required this.timestamp,
     this.speedMps,
     this.altitudeMeters,
+    required altitude,
   });
 
   final double latitude;

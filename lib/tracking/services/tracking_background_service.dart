@@ -283,7 +283,6 @@ Future<void> _onServiceStart(ServiceInstance service) async {
   );
   DateTime? stationarySince;
   UserMetrics? userMetrics;
-  Timer? notificationTimer;
 
   int currentElapsedSeconds() {
     if (!isTracking) {
@@ -303,13 +302,15 @@ Future<void> _onServiceStart(ServiceInstance service) async {
         final h = elapsed.inHours;
         final m = elapsed.inMinutes.remainder(60);
         final s = elapsed.inSeconds.remainder(60);
-        final timeStr = '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+        final timeStr =
+            '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
         final distStr = (distanceMeters / 1000).toStringAsFixed(2);
-        
+
         String status = 'Recording';
-        if (isManuallyPaused) {
+        if (isManuallyPaused)
           status = 'Paused';
-        } else if (isAutoPaused) status = 'Auto-paused';
+        else if (isAutoPaused)
+          status = 'Auto-paused';
 
         service.setForegroundNotificationInfo(
           title: 'FlexRun - $status',
@@ -323,12 +324,6 @@ Future<void> _onServiceStart(ServiceInstance service) async {
       }
     }
   }
-
-  notificationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-    if (isTracking) {
-      updateNotification();
-    }
-  });
 
   Future<void> broadcastSnapshot() async {
     final payload = <String, dynamic>{
@@ -456,6 +451,7 @@ Future<void> _onServiceStart(ServiceInstance service) async {
             timestamp: position.timestamp.toUtc(),
             speedMps: position.speed >= 0 ? position.speed : null,
             altitudeMeters: position.altitude,
+            altitude: null,
           );
 
           if (isManuallyPaused) {
@@ -551,8 +547,8 @@ Future<void> _onServiceStart(ServiceInstance service) async {
     isTracking = false;
     isAutoPaused = false;
     isManuallyPaused = false;
-    
-    // Immediately persist the critical flags so that if the isolate is killed 
+
+    // Immediately persist the critical flags so that if the isolate is killed
     // before finishing closeSession, the app doesn't load in a paused/tracking state.
     await prefs.setBool(_kIsTracking, false);
     await prefs.setBool(_kIsAutoPaused, false);
@@ -660,7 +656,7 @@ Future<void> _onServiceStart(ServiceInstance service) async {
     accumulatedActiveSeconds = 0;
     lastResumedAt = null;
     stationarySince = null;
-    
+
     if (service is AndroidServiceInstance) {
       service.setForegroundNotificationInfo(
         title: 'FlexRun',
