@@ -7,6 +7,7 @@ import 'package:fake_strava/core/theme.dart';
 import 'package:fake_strava/groups/add_members_page.dart';
 import 'package:fake_strava/groups/create_post_page.dart';
 import 'package:fake_strava/groups/group_repository.dart';
+import 'package:fake_strava/groups/group_settings_page.dart';
 import 'package:fake_strava/groups/widgets/group_timeline_tab.dart';
 
 class GroupDetailPage extends StatefulWidget {
@@ -37,9 +38,18 @@ class _GroupDetailPageState extends State<GroupDetailPage> {
       length: 4,
       child: Scaffold(
         appBar: AppBar(
-          title: Text(name),
+          title: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+            stream: FirebaseFirestore.instanceFor(
+              app: Firebase.app(),
+              databaseId: 'fakestrava',
+            ).collection('groups').doc(widget.groupId).snapshots(),
+            builder: (context, snapshot) {
+              final n = snapshot.data?.data()?['name'] as String? ?? name;
+              return Text(n);
+            },
+          ),
           actions: [
-            if (isCreator)
+            if (isCreator) ...[
               IconButton(
                 icon: const Icon(Icons.person_add),
                 onPressed: () {
@@ -55,6 +65,71 @@ class _GroupDetailPageState extends State<GroupDetailPage> {
                   );
                 },
               ),
+              IconButton(
+                icon: const Icon(Icons.settings),
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => GroupSettingsPage(
+                        groupId: widget.groupId,
+                        currentName: name,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ] else ...[
+              IconButton(
+                icon: const Icon(Icons.exit_to_app),
+                tooltip: 'Leave Group',
+                onPressed: () async {
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      title: const Text('Leave Group', style: TextStyle(fontWeight: FontWeight.bold)),
+                      content: const Text('Are you sure you want to leave this group?'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(false),
+                          child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+                        ),
+                        ElevatedButton(
+                          onPressed: () => Navigator.of(context).pop(true),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          child: const Text('Leave'),
+                        ),
+                      ],
+                    ),
+                  );
+
+                  if (confirm == true && context.mounted) {
+                    try {
+                      await GroupRepository().removeMemberFromGroup(
+                        groupId: widget.groupId,
+                        userId: currentUserId,
+                      );
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('You have left the group.')),
+                        );
+                        Navigator.of(context).popUntil((route) => route.isFirst);
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Failed to leave group: $e')),
+                        );
+                      }
+                    }
+                  }
+                },
+              ),
+            ],
           ],
           bottom: const TabBar(
             indicatorColor: kBrandOrange,
@@ -92,6 +167,8 @@ class _GroupDetailPageState extends State<GroupDetailPage> {
             final adminIds = List<String>.from(
               currentData['adminIds'] ?? [],
             );
+            final currentDescription = currentData['description'] as String? ?? '';
+            final canEditAbout = currentUserId == createdBy || adminIds.contains(currentUserId);
 
             return TabBarView(
               children: [
@@ -148,17 +225,73 @@ class _GroupDetailPageState extends State<GroupDetailPage> {
                 ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
-                    Text(
-                      'About',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'About',
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        if (canEditAbout)
+                          IconButton(
+                            icon: const Icon(Icons.edit, size: 20, color: kBrandOrange),
+                            onPressed: () async {
+                              final controller = TextEditingController(text: currentDescription);
+                              final newDescription = await showDialog<String>(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                  title: const Text('Edit About', style: TextStyle(fontWeight: FontWeight.bold)),
+                                  content: TextField(
+                                    controller: controller,
+                                    maxLines: null,
+                                    decoration: const InputDecoration(
+                                      hintText: 'What is this group about?',
+                                      border: OutlineInputBorder(),
+                                    ),
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.of(context).pop(),
+                                      child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+                                    ),
+                                    ElevatedButton(
+                                      onPressed: () => Navigator.of(context).pop(controller.text.trim()),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: kBrandOrange,
+                                        foregroundColor: Colors.white,
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                      ),
+                                      child: const Text('Save'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (newDescription != null && newDescription != currentDescription && context.mounted) {
+                                try {
+                                  await GroupRepository().firestore.collection('groups').doc(widget.groupId).update({
+                                    'description': newDescription,
+                                  });
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Description updated.')),
+                                  );
+                                } catch (e) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Failed to update description: $e')),
+                                  );
+                                }
+                              }
+                            },
+                          ),
+                      ],
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      description.isEmpty
+                      currentDescription.isEmpty
                           ? 'No description provided.'
-                          : description,
+                          : currentDescription,
                       style: const TextStyle(
                         fontSize: 16,
                         color: Colors.black87,

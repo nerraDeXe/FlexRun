@@ -1,9 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'package:fake_strava/core/theme.dart';
 import 'package:fake_strava/home/social_repository.dart';
+import 'package:fake_strava/home/user_list_page.dart';
 import 'package:fake_strava/tracking/widgets/activity_feed_card.dart';
 
 class SearchedUserProfilePage extends StatefulWidget {
@@ -78,9 +80,10 @@ class _SearchedUserProfilePageState extends State<SearchedUserProfilePage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.displayName),
-        backgroundColor: Colors.transparent,
+        backgroundColor: Colors.black,
         elevation: 0,
-        foregroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        systemOverlayStyle: SystemUiOverlayStyle.light,
       ),
       body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
         stream: _socialRepository.firestore
@@ -113,37 +116,155 @@ class _SearchedUserProfilePageState extends State<SearchedUserProfilePage> {
     );
   }
 
+  Widget _buildFollowerStatChip({
+    required int count,
+    required String label,
+    required IconData icon,
+    VoidCallback? onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: const Color(0xFFF97316)),
+            const SizedBox(width: 5),
+            Text(
+              '$count',
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF1E293B),
+              ),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF64748B),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildProfileHeader({required bool isMe, required bool isFollowing}) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        children: [
-          CircleAvatar(
-            radius: 40,
-            backgroundColor: kBrandOrange,
-            foregroundColor: Colors.white,
-            child: Text(
-              widget.displayName.isNotEmpty
-                  ? widget.displayName[0].toUpperCase()
-                  : 'A',
-              style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            widget.displayName,
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '@${widget.username}',
-            style: const TextStyle(
-              fontSize: 14,
-              color: Colors.black54,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 16),
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: _socialRepository.firestore.collection('users').doc(widget.userId).snapshots(),
+      builder: (context, targetUserSnapshot) {
+        final targetData = targetUserSnapshot.data?.data() ?? const <String, dynamic>{};
+        final targetFollowingIds = ((targetData['followingIds'] as List?) ?? const <dynamic>[])
+            .whereType<String>()
+            .toList(growable: false);
+        final followingCount = targetFollowingIds.length;
+
+        return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: _socialRepository.firestore
+              .collection('users')
+              .where('followingIds', arrayContains: widget.userId)
+              .snapshots(),
+          builder: (context, followersSnapshot) {
+            final followerCount = followersSnapshot.data?.docs.length ?? 0;
+
+            return Container(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFF97316), Color(0xFFEA580C)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFF97316).withValues(alpha: 0.2),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: Text(
+                        widget.displayName.isNotEmpty
+                            ? widget.displayName[0].toUpperCase()
+                            : 'A',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    widget.displayName,
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '@${widget.username}',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Colors.black54,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _buildFollowerStatChip(
+                        count: followerCount,
+                        label: 'followers',
+                        icon: Icons.people_outline_rounded,
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => UserListPage(
+                                title: 'Followers',
+                                query: _socialRepository.firestore
+                                    .collection('users')
+                                    .where('followingIds', arrayContains: widget.userId),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      _buildFollowerStatChip(
+                        count: followingCount,
+                        label: 'following',
+                        icon: Icons.person_add_alt_1_outlined,
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => UserListPage(
+                                title: 'Following',
+                                userIds: targetFollowingIds,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
           if (!isMe)
             SizedBox(
               width: 150,
@@ -173,8 +294,12 @@ class _SearchedUserProfilePageState extends State<SearchedUserProfilePage> {
                       ),
               ),
             ),
-        ],
-      ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 

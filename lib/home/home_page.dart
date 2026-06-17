@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:fake_strava/groups/groups_page.dart';
 import 'package:fake_strava/home/social_repository.dart';
 import 'package:fake_strava/home/searched_user_profile_page.dart';
+import 'package:fake_strava/home/user_list_page.dart';
 import 'package:fake_strava/tracking/widgets/activity_feed_card.dart';
 
 class HomePage extends StatefulWidget {
@@ -197,6 +198,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     displayName: displayName,
                     username: username,
                     followingCount: followingIds.length,
+                    followingIds: followingIds,
                   ),
                   SliverToBoxAdapter(child: _buildHeroSearchBar()),
                   if (_searchQuery.isNotEmpty)
@@ -265,6 +267,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     required String displayName,
     required String username,
     required int followingCount,
+    required List<String> followingIds,
   }) {
     return SliverPersistentHeader(
       pinned: true,
@@ -273,6 +276,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         displayName: displayName,
         username: username,
         followingCount: followingCount,
+        followingIds: followingIds,
         animation: _headerAnimation,
         scrollOffset: _scrollOffset,
       ),
@@ -736,6 +740,7 @@ class _ImmersiveHeaderDelegate extends SliverPersistentHeaderDelegate {
   final String displayName;
   final String username;
   final int followingCount;
+  final List<String> followingIds;
   final Animation<double> animation;
   final double scrollOffset;
 
@@ -743,6 +748,7 @@ class _ImmersiveHeaderDelegate extends SliverPersistentHeaderDelegate {
     required this.displayName,
     required this.username,
     required this.followingCount,
+    required this.followingIds,
     required this.animation,
     required this.scrollOffset,
   });
@@ -871,7 +877,7 @@ class _ImmersiveHeaderDelegate extends SliverPersistentHeaderDelegate {
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            _buildFollowerChip(),
+                            _buildFollowerChip(context),
                             const SizedBox(height: 8),
                             _buildGroupsButton(context),
                           ],
@@ -965,36 +971,48 @@ class _ImmersiveHeaderDelegate extends SliverPersistentHeaderDelegate {
     );
   }
 
-  Widget _buildFollowerChip() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF1F5F9),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.people_rounded, size: 14, color: const Color(0xFFF97316)),
-          const SizedBox(width: 6),
-          Text(
-            '$followingCount',
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF1E293B),
+  Widget _buildFollowerChip(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => UserListPage(
+              title: 'Following',
+              userIds: followingIds,
             ),
           ),
-          const SizedBox(width: 4),
-          Text(
-            'following',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-              color: const Color(0xFF64748B),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.people_rounded, size: 14, color: const Color(0xFFF97316)),
+            const SizedBox(width: 6),
+            Text(
+              '$followingCount',
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF1E293B),
+              ),
             ),
-          ),
-        ],
+            const SizedBox(width: 4),
+            Text(
+              'following',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: const Color(0xFF64748B),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

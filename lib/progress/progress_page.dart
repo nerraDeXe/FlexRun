@@ -15,10 +15,13 @@ class ProgressPage extends StatefulWidget {
   State<ProgressPage> createState() => _ProgressPageState();
 }
 
+enum ProgressFilter { weekly, monthly, yearly, allTime }
+
 class _ProgressPageState extends State<ProgressPage>
     with AutomaticKeepAliveClientMixin {
   final SocialRepository _socialRepository = SocialRepository();
   final _scrollController = ScrollController();
+  ProgressFilter _currentFilter = ProgressFilter.weekly;
 
   // Error tracking for retry
   bool _isRetrying = false;
@@ -155,7 +158,7 @@ class _ProgressPageState extends State<ProgressPage>
               .collection('tracking_sessions')
               .where('userId', isEqualTo: userId)
               .orderBy('startedAt', descending: true)
-              .limit(20) // Reduced from 50 since we only show 5
+              .limit(500) // Increased to allow calculating yearly/all-time stats
               .snapshots(),
       builder: (context, snapshot) {
         // Handle loading state
@@ -189,10 +192,11 @@ class _ProgressPageState extends State<ProgressPage>
         // Reset error state on success
 
         try {
-          final sessions = snapshot.data!.docs;
-          final stats = _calculateWeeklyStats(sessions);
+          final allSessions = snapshot.data!.docs;
+          final filteredSessions = _filterSessions(allSessions);
+          final stats = _calculateStats(filteredSessions);
 
-          return _buildContent(sessions, stats, userId);
+          return _buildContent(filteredSessions, stats, userId);
         } catch (e, stackTrace) {
           // Catch any rendering errors
           debugPrint('Error rendering progress page: $e');
@@ -203,47 +207,64 @@ class _ProgressPageState extends State<ProgressPage>
     );
   }
 
-  _WeeklyStats _calculateWeeklyStats(
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> _filterSessions(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> sessions,
   ) {
+    if (_currentFilter == ProgressFilter.allTime) return sessions;
+
     final now = DateTime.now();
-    // Use local timezone for week calculation to be more user-friendly
     final localNow = now.toLocal();
-    final weekStart = DateTime(
-      localNow.year,
-      localNow.month,
-      localNow.day - 7,
-    ).toUtc();
+    DateTime startDate;
 
-    var weekDistanceMeters = 0.0;
-    var weekWorkoutCount = 0;
-    var weekCalories = 0.0;
-
-    for (final doc in sessions) {
-      final data = doc.data();
-      final startedAt = _safeDateTime(data['startedAt']);
-
-      if (startedAt == null || startedAt.isBefore(weekStart)) {
-        continue;
-      }
-
-      weekWorkoutCount += 1;
-      weekDistanceMeters += _safeDouble(data['distanceMeters']);
-      weekCalories += _safeDouble(data['caloriesKcal']);
+    switch (_currentFilter) {
+      case ProgressFilter.weekly:
+        startDate = DateTime(localNow.year, localNow.month, localNow.day - 7).toUtc();
+        break;
+      case ProgressFilter.monthly:
+        startDate = DateTime(localNow.year, localNow.month - 1, localNow.day).toUtc();
+        break;
+      case ProgressFilter.yearly:
+        startDate = DateTime(localNow.year, 1, 1).toUtc();
+        break;
+      case ProgressFilter.allTime:
+        return sessions; // Handled above
     }
 
-    final weekDistanceKm = weekDistanceMeters / 1000;
-    final averageDistanceKm = weekWorkoutCount > 0
-        ? weekDistanceKm / weekWorkoutCount
+    return sessions.where((doc) {
+      final startedAt = _safeDateTime(doc.data()['startedAt']);
+      if (startedAt == null) return false;
+      return !startedAt.isBefore(startDate);
+    }).toList();
+  }
+
+  _WeeklyStats _calculateStats(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> filteredSessions,
+  ) {
+    var totalDistanceMeters = 0.0;
+    var totalWorkoutCount = 0;
+    var totalCalories = 0.0;
+
+    for (final doc in filteredSessions) {
+      final data = doc.data();
+
+      totalWorkoutCount += 1;
+      totalDistanceMeters += _safeDouble(data['distanceMeters']);
+      totalCalories += _safeDouble(data['caloriesKcal']);
+    }
+
+    final totalDistanceKm = totalDistanceMeters / 1000;
+    final averageDistanceKm = totalWorkoutCount > 0
+        ? totalDistanceKm / totalWorkoutCount
         : 0.0;
 
     return _WeeklyStats(
-      distanceKm: weekDistanceKm,
-      workoutCount: weekWorkoutCount,
-      calories: weekCalories,
+      distanceKm: totalDistanceKm,
+      workoutCount: totalWorkoutCount,
+      calories: totalCalories,
       averageDistanceKm: averageDistanceKm,
-      totalSessions: sessions.length,
+      totalSessions: filteredSessions.length,
     );
+
   }
 
   Widget _buildErrorWidget(Object? error) {
@@ -364,12 +385,17 @@ class _ProgressPageState extends State<ProgressPage>
             padding: const EdgeInsets.fromLTRB(16, 24, 16, 28),
             children: [
               _buildHeader(),
+              const SizedBox(height: 16),
+              _buildFilterSelector(),
               const SizedBox(height: 20),
-              _ProgressSummaryCard(distanceKm: stats.distanceKm),
+              _ProgressSummaryCard(
+                distanceKm: stats.distanceKm,
+                filterLabel: _getFilterLabel(),
+              ),
               const SizedBox(height: 24),
-              const _SectionHeader(
+              _SectionHeader(
                 title: 'Highlights',
-                subtitle: 'Weekly totals and personal averages',
+                subtitle: '${_getFilterLabel()} totals and averages',
               ),
               const SizedBox(height: 14),
               _ProgressHighlightsCard(
@@ -377,8 +403,15 @@ class _ProgressPageState extends State<ProgressPage>
                 caloriesKcal: stats.calories,
                 averageDistanceKm: stats.averageDistanceKm,
               ),
+              const SizedBox(height: 24),
+              const _SectionHeader(
+                title: 'Activity',
+                subtitle: 'Days you completed a workout this month',
+              ),
+              const SizedBox(height: 14),
+              _ActivityCalendar(sessions: sessions),
               if (stats.totalSessions > 5) ...[
-                const SizedBox(height: 16),
+                const SizedBox(height: 24),
                 Align(
                   alignment: Alignment.centerRight,
                   child: Text(
@@ -391,9 +424,9 @@ class _ProgressPageState extends State<ProgressPage>
                 ),
               ],
               const SizedBox(height: 24),
-              const _SectionHeader(
+              _SectionHeader(
                 title: 'Recent sessions',
-                subtitle: 'Your latest 5 activities',
+                subtitle: _getActivitiesSubtitle(),
               ),
               const SizedBox(height: 12),
               ...displaySessions.map((doc) {
@@ -470,6 +503,85 @@ class _ProgressPageState extends State<ProgressPage>
           ),
           Icon(Icons.insights, color: kBrandOrange, size: 32),
         ],
+      ),
+    );
+  }
+
+  String _getFilterLabel() {
+    switch (_currentFilter) {
+      case ProgressFilter.weekly:
+        return 'Last 7 days';
+      case ProgressFilter.monthly:
+        return 'Last 30 days';
+      case ProgressFilter.yearly:
+        return 'This year';
+      case ProgressFilter.allTime:
+        return 'All time';
+    }
+  }
+
+  String _getActivitiesSubtitle() {
+    switch (_currentFilter) {
+      case ProgressFilter.weekly:
+        return 'Your latest 5 activities from the last 7 days';
+      case ProgressFilter.monthly:
+        return 'Your latest 5 activities from the last 30 days';
+      case ProgressFilter.yearly:
+        return 'Your latest 5 activities from this year';
+      case ProgressFilter.allTime:
+        return 'Your latest 5 activities of all time';
+    }
+  }
+
+  Widget _buildFilterSelector() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: ProgressFilter.values.map((filter) {
+          final isSelected = _currentFilter == filter;
+          String label = '';
+          switch (filter) {
+            case ProgressFilter.weekly:
+              label = 'Weekly';
+              break;
+            case ProgressFilter.monthly:
+              label = 'Monthly';
+              break;
+            case ProgressFilter.yearly:
+              label = 'Yearly';
+              break;
+            case ProgressFilter.allTime:
+              label = 'All Time';
+              break;
+          }
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: FilterChip(
+              label: Text(label),
+              selected: isSelected,
+              onSelected: (selected) {
+                if (selected) {
+                  setState(() {
+                    _currentFilter = filter;
+                  });
+                }
+              },
+              selectedColor: kBrandOrange.withValues(alpha: 0.2),
+              checkmarkColor: kBrandOrange,
+              labelStyle: TextStyle(
+                color: isSelected ? kBrandOrange : Colors.black87,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: BorderSide(
+                  color: isSelected ? kBrandOrange : Colors.black12,
+                ),
+              ),
+            ),
+          );
+        }).toList(),
       ),
     );
   }
@@ -578,9 +690,13 @@ class _WeeklyStats {
 
 // Reusable components (keeping existing widgets but making them stateless)
 class _ProgressSummaryCard extends StatelessWidget {
-  const _ProgressSummaryCard({required this.distanceKm});
+  const _ProgressSummaryCard({
+    required this.distanceKm,
+    required this.filterLabel,
+  });
 
   final double distanceKm;
+  final String filterLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -625,7 +741,7 @@ class _ProgressSummaryCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  'Last 7 days',
+                  filterLabel,
                   style: AppTypography.captionSmall.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.w700,
@@ -807,6 +923,121 @@ class _ProgressHighlightsCard extends StatelessWidget {
     );
   }
 }
+
+class _ActivityCalendar extends StatelessWidget {
+  const _ActivityCalendar({required this.sessions});
+
+  final List<QueryDocumentSnapshot<Map<String, dynamic>>> sessions;
+
+  @override
+  Widget build(BuildContext context) {
+    // Get active days in the current month
+    final now = DateTime.now();
+    final localNow = now.toLocal();
+    final currentMonth = DateTime(localNow.year, localNow.month, 1);
+    
+    // Find active days
+    final activeDays = <int>{};
+    for (final doc in sessions) {
+      final data = doc.data();
+      final startedAtStr = data['startedAt'] as String?;
+      if (startedAtStr != null) {
+         try {
+           final date = DateTime.parse(startedAtStr).toLocal();
+           if (date.year == localNow.year && date.month == localNow.month) {
+             activeDays.add(date.day);
+           }
+         } catch (_) {}
+      }
+    }
+
+    final daysInMonth = DateTime(localNow.year, localNow.month + 1, 0).day;
+    final firstWeekday = currentMonth.weekday; // 1 = Mon, 7 = Sun. 
+    // Usually calendar starts on Sunday, so adjust:
+    final emptyDaysBefore = firstWeekday == 7 ? 0 : firstWeekday;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.black.withValues(alpha: 0.06), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 4),
+          // Weekday headers
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day) {
+              return SizedBox(
+                width: 32,
+                child: Text(
+                  day,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.grey,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 12),
+          // Grid
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: emptyDaysBefore + daysInMonth,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 7,
+              mainAxisSpacing: 8,
+              crossAxisSpacing: 8,
+            ),
+            itemBuilder: (context, index) {
+              if (index < emptyDaysBefore) {
+                return const SizedBox();
+              }
+              final day = index - emptyDaysBefore + 1;
+              final isActive = activeDays.contains(day);
+              final isToday = day == localNow.day;
+
+              return Container(
+                decoration: BoxDecoration(
+                  color: isActive ? kBrandOrange : kSurface,
+                  shape: BoxShape.circle,
+                  border: isToday && !isActive
+                      ? Border.all(color: kBrandOrange, width: 2)
+                      : null,
+                ),
+                child: Center(
+                  child: Text(
+                    '$day',
+                    style: TextStyle(
+                      color: isActive ? Colors.white : Colors.black87,
+                      fontWeight: isActive || isToday ? FontWeight.bold : FontWeight.w500,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 
 class _EmptyStateCard extends StatelessWidget {
   const _EmptyStateCard({

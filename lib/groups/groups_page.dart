@@ -334,11 +334,20 @@ class _PendingInvitesTabState extends State<_PendingInvitesTab> {
   final Set<String> _processingInviteIds = <String>{};
   final Map<String, Future<DocumentSnapshot<Map<String, dynamic>>>> _groupFutures =
       {};
+  final Map<String, Future<DocumentSnapshot<Map<String, dynamic>>>> _userFutures =
+      {};
 
   Future<DocumentSnapshot<Map<String, dynamic>>> _groupDocFuture(String groupId) {
     return _groupFutures.putIfAbsent(
       groupId,
       () => widget.repo.firestore.collection('groups').doc(groupId).get(),
+    );
+  }
+
+  Future<DocumentSnapshot<Map<String, dynamic>>> _userDocFuture(String userId) {
+    return _userFutures.putIfAbsent(
+      userId,
+      () => widget.repo.firestore.collection('users').doc(userId).get(),
     );
   }
 
@@ -461,11 +470,19 @@ class _PendingInvitesTabState extends State<_PendingInvitesTab> {
                 final groupData = groupSnapshot.data?.data();
                 final groupName =
                     groupData?['name'] as String? ?? 'Unknown Group';
-                final invitedBy = inviteData['invitedBy'] as String? ?? 'Someone';
+                final invitedById = inviteData['invitedBy'] as String? ?? '';
 
-                return Container(
-                  decoration: _groupGlowCardDecoration(accent: kInfo),
-                  child: Padding(
+                return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                  future: invitedById.isNotEmpty ? _userDocFuture(invitedById) : null,
+                  builder: (context, userSnapshot) {
+                    final userData = userSnapshot.data?.data();
+                    final invitedBy = userData?['username'] as String? ??
+                        userData?['displayName'] as String? ??
+                        'Someone';
+
+                    return Container(
+                      decoration: _groupGlowCardDecoration(accent: kInfo),
+                      child: Padding(
                     padding: const EdgeInsets.all(20),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -559,6 +576,8 @@ class _PendingInvitesTabState extends State<_PendingInvitesTab> {
                       ],
                     ),
                   ),
+                );
+                  },
                 );
               },
             );

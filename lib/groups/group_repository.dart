@@ -290,4 +290,17 @@ class GroupRepository {
       'adminIds': FieldValue.arrayRemove([userId]),
     });
   }
+
+  Future<void> updateGroupName({
+    required String groupId,
+    required String newName,
+  }) async {
+    await _firestore.collection('groups').doc(groupId).update({
+      'name': newName.trim(),
+    });
+  }
+
+  Future<void> deleteGroup(String groupId) async {
+    await _firestore.collection('groups').doc(groupId).delete();
+  }
 }

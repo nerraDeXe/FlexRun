@@ -13,6 +13,7 @@ import 'package:fake_strava/auth/pages/account_security_page.dart';
 import 'package:fake_strava/tracking/models/tracking_snapshot.dart';
 import 'package:fake_strava/tracking/pages/workout_history_page.dart';
 import 'package:fake_strava/tracking/services/tracking_background_service.dart';
+import 'package:fake_strava/home/user_list_page.dart';
 import 'user_metrics.dart';
 import 'user_metrics_form_dialog.dart';
 import 'user_metrics_repository.dart';
@@ -337,14 +338,17 @@ class _ProfileHeroCardState extends State<_ProfileHeroCard> {
     required int count,
     required String label,
     required IconData icon,
+    VoidCallback? onTap,
   }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF1F5F9),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 14, color: const Color(0xFFF97316)),
@@ -367,6 +371,7 @@ class _ProfileHeroCardState extends State<_ProfileHeroCard> {
             ),
           ),
         ],
+      ),
       ),
     );
   }
@@ -489,11 +494,33 @@ class _ProfileHeroCardState extends State<_ProfileHeroCard> {
                                   count: followerCount,
                                   label: 'followers',
                                   icon: Icons.people_outline_rounded,
+                                  onTap: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => UserListPage(
+                                          title: 'Followers',
+                                          query: _firestore
+                                              .collection('users')
+                                              .where('followingIds', arrayContains: user.uid),
+                                        ),
+                                      ),
+                                    );
+                                  },
                                 ),
                                 _buildFollowerStatChip(
                                   count: followingCount,
                                   label: 'following',
                                   icon: Icons.person_add_alt_1_outlined,
+                                  onTap: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => UserListPage(
+                                          title: 'Following',
+                                          userIds: followingIds,
+                                        ),
+                                      ),
+                                    );
+                                  },
                                 ),
                               ],
                             ),

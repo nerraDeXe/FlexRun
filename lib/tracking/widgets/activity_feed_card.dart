@@ -10,6 +10,7 @@ import 'package:fake_strava/core/ui_components.dart';
 import 'package:fake_strava/home/social_repository.dart';
 import 'package:fake_strava/tracking/pages/activity_detail_page.dart';
 import 'package:fake_strava/tracking/services/tracking_repository.dart';
+import 'package:fake_strava/home/searched_user_profile_page.dart';
 
 Future<void> confirmAndDeleteExercise(
   BuildContext context, {
@@ -368,6 +369,7 @@ class ActivityFeedCard extends StatelessWidget {
     if (actorId == null) {
       return _buildPremiumCard(
         context: context,
+        actorId: actorId,
         actorUsername: fallbackUsername,
         actorDisplayName: fallbackDisplayName,
         isMine: isMine,
@@ -396,6 +398,7 @@ class ActivityFeedCard extends StatelessWidget {
 
         return _buildPremiumCard(
           context: context,
+          actorId: actorId,
           actorUsername: profileUsername,
           actorDisplayName: profileDisplayName,
           isMine: isMine,
@@ -457,6 +460,7 @@ class ActivityFeedCard extends StatelessWidget {
 
   Widget _buildPremiumCard({
     required BuildContext context,
+    required String? actorId,
     required String actorUsername,
     required String? actorDisplayName,
     required bool isMine,
@@ -526,74 +530,96 @@ class ActivityFeedCard extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(16, 14, 12, 10),
                 child: Row(
                   children: [
-                    // Premium avatar
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [Color(0xFFF97316), Color(0xFFEA580C)],
-                        ),
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(
-                              0xFFF97316,
-                            ).withValues(alpha: 0.25),
-                            blurRadius: 10,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Center(
-                        child: Text(
-                          (actorUsername.isNotEmpty ? actorUsername[0] : 'R')
-                              .toUpperCase(),
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 20,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    // User info
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            title,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF1E293B),
-                              height: 1.2,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.access_time_rounded,
-                                size: 12,
-                                color: const Color(0xFF94A3B8),
-                              ),
-                              const SizedBox(width: 3),
-                              Text(
-                                subtitle,
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w500,
-                                  color: Color(0xFF64748B),
+                      child: GestureDetector(
+                        onTap: () {
+                          if (actorId != null && !isMine) {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => SearchedUserProfilePage(
+                                  userId: actorId,
+                                  displayName: actorDisplayName ?? title,
+                                  username: actorUsername,
                                 ),
                               ),
-                            ],
-                          ),
-                        ],
+                            );
+                          }
+                        },
+                        behavior: HitTestBehavior.opaque,
+                        child: Row(
+                          children: [
+                            // Premium avatar
+                            Container(
+                              width: 48,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [Color(0xFFF97316), Color(0xFFEA580C)],
+                                ),
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(
+                                      0xFFF97316,
+                                    ).withValues(alpha: 0.25),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Center(
+                                child: Text(
+                                  (actorUsername.isNotEmpty ? actorUsername[0] : 'R')
+                                      .toUpperCase(),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 20,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            // User info
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    title,
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w800,
+                                      color: Color(0xFF1E293B),
+                                      height: 1.2,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.access_time_rounded,
+                                        size: 12,
+                                        color: const Color(0xFF94A3B8),
+                                      ),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        subtitle,
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w500,
+                                          color: Color(0xFF64748B),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                     // Action buttons
